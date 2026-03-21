@@ -4,14 +4,11 @@ import SwiftUI
 // 小红书-style 2-column waterfall grid for posts.
 //
 // UX Decisions (UI/UX Pro Max + SwiftUI Pro):
-// - 2-column grid maximizes content density — users see 4-6 posts per screen
-//   vs. 1-2 with full-width cards. This is the standard pattern for visual
-//   social feeds (小红书, Pinterest, Instagram Explore).
-// - Compact cards: image + 2-line text + minimal stats. No author row on feed
-//   cards — saves vertical space. Author shows on detail tap.
-// - Filter chips at top for tag-based browsing (Food, Music, etc.)
+// - 2-column grid maximizes content density — users see 4-6 posts per screen.
+// - Compact cards: image + 2-line text + minimal stats.
+// - Filter chips ALWAYS visible at top — never disappear during loading.
 // - Pull-to-refresh + infinite scroll pagination.
-// - Cards have slight shadow + rounded corners for depth without clutter.
+// - Cards have fixed image height + clipped to prevent overflow/stacking.
 
 struct PostsFeedScreen: View {
     @Environment(DependencyContainer.self) private var container
@@ -39,16 +36,16 @@ struct PostsFeedScreen: View {
 }
 
 // MARK: - Feed Content
-// UX: Filter chips are ALWAYS visible at the top regardless of loading/error/empty
-// state. This prevents the jarring disappear-reappear when switching filters.
-// Only the content area below the chips changes between states.
+// UX: Filter chips are pinned at top OUTSIDE the scrollable content area.
+// They never disappear regardless of loading/error/empty state.
+// A subtle divider separates chips from content for visual clarity.
 
 private struct PostsFeedContent: View {
     @Bindable var viewModel: PostsFeedViewModel
 
     var body: some View {
         VStack(spacing: 0) {
-            // Filter chips — always visible, pinned at top
+            // Filter chips — always visible, pinned outside ScrollView
             FilterChipRow(
                 filters: viewModel.filterOptions,
                 selected: Binding(
@@ -61,23 +58,28 @@ private struct PostsFeedContent: View {
             )
             .padding(.vertical, Spacing.sm)
 
-            // Content area below chips switches based on state
-            if viewModel.isLoading && viewModel.posts.isEmpty {
+            Rectangle()
+                .fill(BelongColor.divider)
+                .frame(height: 0.5)
+
+            // Content area — scrollable, switches based on state
+            // Show grid if we have posts (even while loading new filter results)
+            if !viewModel.posts.isEmpty {
+                PostsFeedGrid(viewModel: viewModel)
+            } else if viewModel.isLoading {
                 PostsFeedSkeleton()
-            } else if let error = viewModel.error, viewModel.posts.isEmpty {
+            } else if let error = viewModel.error {
                 ErrorStateView(message: error, onRetry: {
                     Task { await viewModel.loadFeed() }
                 })
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if viewModel.posts.isEmpty {
+            } else {
                 EmptyStateView(
                     icon: "square.and.pencil",
                     title: "No posts yet",
                     message: "Follow people or explore tags to see posts in your feed."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                PostsFeedGrid(viewModel: viewModel)
             }
         }
         .background(BelongColor.background)
@@ -85,45 +87,40 @@ private struct PostsFeedContent: View {
 }
 
 // MARK: - 2-Column Grid Feed
-// UX: LazyVGrid with 2 flexible columns. Each card is self-sizing
-// based on image aspect ratio + text content, creating a natural
-// waterfall flow. Min spacing of 10pt between cards (touch-safe).
 
 private struct PostsFeedGrid: View {
     @Bindable var viewModel: PostsFeedViewModel
 
     private let columns = [
-        GridItem(.flexible(), spacing: Spacing.sm),
-        GridItem(.flexible(), spacing: Spacing.sm)
+        GridItem(.flexible(), spacing: Spacing.md),
+        GridItem(.flexible(), spacing: Spacing.md)
     ]
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // 2-column grid (filter chips are handled by parent PostsFeedContent)
-                LazyVGrid(columns: columns, spacing: Spacing.sm) {
-                    ForEach(viewModel.posts) { post in
-                        NavigationLink(value: PostsRoute.detail(post)) {
-                            CompactPostCard(
-                                post: post,
-                                onLike: { viewModel.toggleLike(postId: post.id) }
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear {
-                            if post.id == viewModel.posts.last?.id {
-                                Task { await viewModel.loadMore() }
-                            }
+            LazyVGrid(columns: columns, spacing: Spacing.md) {
+                ForEach(viewModel.posts) { post in
+                    NavigationLink(value: PostsRoute.detail(post)) {
+                        CompactPostCard(
+                            post: post,
+                            onLike: { viewModel.toggleLike(postId: post.id) }
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .onAppear {
+                        if post.id == viewModel.posts.last?.id {
+                            Task { await viewModel.loadMore() }
                         }
                     }
                 }
-                .padding(.horizontal, Layout.screenPadding)
-                .padding(.bottom, Spacing.xxl)
+            }
+            .padding(.horizontal, Layout.screenPadding)
+            .padding(.top, Spacing.md)
+            .padding(.bottom, Spacing.xxl)
 
-                if viewModel.isLoadingMore {
-                    ProgressView()
-                        .padding(Spacing.lg)
-                }
+            if viewModel.isLoadingMore {
+                ProgressView()
+                    .padding(Spacing.lg)
             }
         }
         .refreshable {
@@ -132,11 +129,12 @@ private struct PostsFeedGrid: View {
     }
 }
 
-// MARK: - Compact Post Card (for 2-column grid)
-// UX: Optimized for small card size — image takes most of the space,
-// text is limited to 2 lines, stats are tiny. Author avatar is a
-// small overlay on the image bottom-left for recognition without
-// taking card body space. This mirrors 小红书's card pattern exactly.
+// MARK: - Compact Post Card
+// UX: Each card is a self-contained unit with FIXED dimensions to prevent
+// overflow. The image uses a fixed aspect ratio container with clipping.
+// Text body has consistent padding and line limits.
+// Key fix: .frame().clipped() on the image container prevents scaledToFill
+// from bleeding into adjacent grid cells.
 
 private struct CompactPostCard: View {
     let post: Post
@@ -144,90 +142,95 @@ private struct CompactPostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image area
-            ZStack(alignment: .bottomLeading) {
-                if let image = post.coverImage {
-                    AsyncImage(url: image.imageURL) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        default:
-                            cardPlaceholder
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .clipped()
-                } else {
-                    cardPlaceholder
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
-                }
+            // Image — fixed height, fully clipped
+            postImageView
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
+                .clipped()
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: Layout.radiusMd,
+                        topTrailingRadius: Layout.radiusMd
+                    )
+                )
 
-                // Author avatar overlay (small, bottom-left)
+            // Text body — clear separation from image
+            VStack(alignment: .leading, spacing: 6) {
+                // Author row
                 HStack(spacing: 4) {
                     AvatarView(
                         imageURL: post.authorAvatarURL,
                         emoji: post.authorAvatarEmoji,
                         size: .small
                     )
-                    .frame(width: 20, height: 20)
+                    .frame(width: 18, height: 18)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(BelongColor.surface, lineWidth: 1))
 
                     Text(post.authorName)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white)
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.textSecondary)
                         .lineLimit(1)
-                        .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
                 }
-                .padding(.horizontal, Spacing.sm)
-                .padding(.bottom, Spacing.sm)
-            }
 
-            // Text + stats
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+                // Content text
                 Text(post.content)
                     .font(BelongFont.captionMedium())
                     .foregroundStyle(BelongColor.textPrimary)
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
 
-                // Compact stats row
-                HStack(spacing: Spacing.sm) {
-                    HStack(spacing: 2) {
-                        Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                            .font(.system(size: 11))
-                            .foregroundStyle(post.isLiked ? BelongColor.error : BelongColor.textTertiary)
-                        if post.likeCount > 0 {
-                            Text("\(post.likeCount)")
-                                .font(.system(size: 10))
-                                .foregroundStyle(BelongColor.textTertiary)
+                // Stats row
+                HStack(spacing: Spacing.md) {
+                    Button(action: { onLike?() }) {
+                        Label {
+                            if post.likeCount > 0 {
+                                Text("\(post.likeCount)")
+                            }
+                        } icon: {
+                            Image(systemName: post.isLiked ? "heart.fill" : "heart")
                         }
+                        .foregroundStyle(post.isLiked ? BelongColor.error : BelongColor.textTertiary)
                     }
-                    .onTapGesture { onLike?() }
+                    .buttonStyle(.plain)
 
-                    HStack(spacing: 2) {
-                        Image(systemName: "bubble.left")
-                            .font(.system(size: 11))
+                    Label {
                         if post.commentCount > 0 {
                             Text("\(post.commentCount)")
-                                .font(.system(size: 10))
                         }
+                    } icon: {
+                        Image(systemName: "bubble.left")
                     }
                     .foregroundStyle(BelongColor.textTertiary)
 
                     Spacer()
                 }
+                .font(.system(size: 11))
             }
             .padding(.horizontal, Spacing.sm)
             .padding(.vertical, Spacing.sm)
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-        .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, y: 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(post.authorName): \(post.content)")
+    }
+
+    @ViewBuilder
+    private var postImageView: some View {
+        if let image = post.coverImage {
+            AsyncImage(url: image.imageURL) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable()
+                        .aspectRatio(contentMode: .fill)
+                default:
+                    cardPlaceholder
+                }
+            }
+        } else {
+            cardPlaceholder
+        }
     }
 
     private var cardPlaceholder: some View {
@@ -244,27 +247,29 @@ private struct CompactPostCard: View {
 
 private struct PostsFeedSkeleton: View {
     private let columns = [
-        GridItem(.flexible(), spacing: Spacing.sm),
-        GridItem(.flexible(), spacing: Spacing.sm)
+        GridItem(.flexible(), spacing: Spacing.md),
+        GridItem(.flexible(), spacing: Spacing.md)
     ]
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: Spacing.sm) {
+            LazyVGrid(columns: columns, spacing: Spacing.md) {
                 ForEach(0..<6, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 0) {
-                        SkeletonView(height: 140)
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                        SkeletonView(height: 160)
+                        VStack(alignment: .leading, spacing: 6) {
+                            SkeletonView(width: 60, height: 12)
                             SkeletonView(height: 14)
-                            SkeletonView(width: 80, height: 12)
+                            SkeletonView(width: 80, height: 11)
                         }
                         .padding(Spacing.sm)
                     }
+                    .background(BelongColor.surface)
                     .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
                 }
             }
             .padding(.horizontal, Layout.screenPadding)
-            .padding(.top, Spacing.base)
+            .padding(.top, Spacing.md)
         }
     }
 }

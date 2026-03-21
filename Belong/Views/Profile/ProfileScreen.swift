@@ -355,31 +355,38 @@ private struct ProfilePostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Image — fixed height, fully clipped to prevent overflow
             postImage
                 .frame(maxWidth: .infinity)
                 .frame(height: 140)
                 .clipped()
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: Layout.radiusMd,
+                        topTrailingRadius: Layout.radiusMd
+                    )
+                )
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(post.content)
                     .font(BelongFont.captionMedium())
                     .foregroundStyle(BelongColor.textPrimary)
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
 
                 HStack(spacing: Spacing.sm) {
                     Label("\(post.likeCount)", systemImage: "heart")
                     Label("\(post.commentCount)", systemImage: "bubble.right")
                 }
-                .font(BelongFont.caption())
+                .font(.system(size: 11))
                 .foregroundStyle(BelongColor.textTertiary)
             }
-            .padding(Spacing.sm)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.sm)
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-        .contentShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-        .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, y: 2)
     }
 
     @ViewBuilder
@@ -388,7 +395,8 @@ private struct ProfilePostCard: View {
             AsyncImage(url: image.imageURL) { phase in
                 switch phase {
                 case .success(let img):
-                    img.resizable().scaledToFill()
+                    img.resizable()
+                        .aspectRatio(contentMode: .fill)
                 default:
                     cardPlaceholder
                 }
@@ -402,7 +410,7 @@ private struct ProfilePostCard: View {
         ZStack {
             BelongColor.surfaceSecondary
             Image(systemName: "text.quote")
-                .font(.system(size: 24))
+                .font(.system(size: 20))
                 .foregroundStyle(BelongColor.textTertiary)
         }
     }
