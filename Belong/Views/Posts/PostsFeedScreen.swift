@@ -39,12 +39,29 @@ struct PostsFeedScreen: View {
 }
 
 // MARK: - Feed Content
+// UX: Filter chips are ALWAYS visible at the top regardless of loading/error/empty
+// state. This prevents the jarring disappear-reappear when switching filters.
+// Only the content area below the chips changes between states.
 
 private struct PostsFeedContent: View {
     @Bindable var viewModel: PostsFeedViewModel
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            // Filter chips — always visible, pinned at top
+            FilterChipRow(
+                filters: viewModel.filterOptions,
+                selected: Binding(
+                    get: { viewModel.selectedFilterBinding },
+                    set: { newValue in
+                        viewModel.selectedFilterBinding = newValue
+                        Task { await viewModel.loadFeed() }
+                    }
+                )
+            )
+            .padding(.vertical, Spacing.sm)
+
+            // Content area below chips switches based on state
             if viewModel.isLoading && viewModel.posts.isEmpty {
                 PostsFeedSkeleton()
             } else if let error = viewModel.error, viewModel.posts.isEmpty {
@@ -83,20 +100,7 @@ private struct PostsFeedGrid: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Filter chips
-                FilterChipRow(
-                    filters: viewModel.filterOptions,
-                    selected: Binding(
-                        get: { viewModel.selectedFilterBinding },
-                        set: { newValue in
-                            viewModel.selectedFilterBinding = newValue
-                            Task { await viewModel.loadFeed() }
-                        }
-                    )
-                )
-                .padding(.vertical, Spacing.sm)
-
-                // 2-column grid
+                // 2-column grid (filter chips are handled by parent PostsFeedContent)
                 LazyVGrid(columns: columns, spacing: Spacing.sm) {
                     ForEach(viewModel.posts) { post in
                         NavigationLink(value: PostsRoute.detail(post)) {
