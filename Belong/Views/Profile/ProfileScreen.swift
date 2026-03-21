@@ -64,15 +64,37 @@ private struct ProfileScrollContent: View {
     let user: User
     @Bindable var viewModel: ProfileViewModel
 
+    // UX: Profile header is a compact identity section. The tab content below
+    // needs generous top spacing so it doesn't feel crushed against the tags.
+    // Cultural tags + tab selector get extra vertical padding for breathing room.
+
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: Spacing.lg) {
+            LazyVStack(spacing: 0) {
+                // Identity cluster — tighter internal spacing
                 ProfileHeaderSection(user: user)
-                ProfileStatsRow(user: user)
-                ProfileActionButtons()
-                ProfileCulturalTags()
-                ProfileTabSelector(selectedTab: $viewModel.selectedProfileTab)
+                    .padding(.bottom, Spacing.base)
 
+                ProfileStatsRow(user: user)
+                    .padding(.bottom, Spacing.base)
+
+                ProfileActionButtons()
+                    .padding(.bottom, Spacing.lg)
+
+                ProfileCulturalTags()
+                    .padding(.bottom, Spacing.xl)
+
+                // Divider before tab area for visual separation
+                Rectangle()
+                    .fill(BelongColor.divider)
+                    .frame(height: 1)
+                    .padding(.horizontal, Layout.screenPadding)
+                    .padding(.bottom, Spacing.base)
+
+                ProfileTabSelector(selectedTab: $viewModel.selectedProfileTab)
+                    .padding(.bottom, Spacing.lg)
+
+                // Tab content with generous top breathing room
                 switch viewModel.selectedProfileTab {
                 case .posts:
                     ProfilePostsGrid(posts: viewModel.myPosts)
@@ -241,11 +263,14 @@ private struct ProfileTabSelector: View {
     }
 }
 
-// MARK: - Posts Grid
+// MARK: - Posts Grid (小红书-style 2-column)
+// UX: 2 columns gives each post enough room to show a preview image plus
+// title and engagement info. This matches the discovery-oriented feel of
+// the Posts tab — users scan visually, not just by thumbnails.
 
 private struct ProfilePostsGrid: View {
     let posts: [Post]
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Spacing.md), count: 2)
 
     var body: some View {
         if posts.isEmpty {
@@ -255,11 +280,12 @@ private struct ProfilePostsGrid: View {
                 message: "Share your first post with the community."
             )
         } else {
-            LazyVGrid(columns: columns, spacing: 2) {
+            LazyVGrid(columns: columns, spacing: Spacing.md) {
                 ForEach(posts) { post in
                     NavigationLink(value: PostsRoute.detail(post)) {
-                        ProfilePostThumbnail(post: post)
+                        ProfilePostCard(post: post)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, Layout.screenPadding)
@@ -267,34 +293,60 @@ private struct ProfilePostsGrid: View {
     }
 }
 
-private struct ProfilePostThumbnail: View {
+private struct ProfilePostCard: View {
     let post: Post
 
     var body: some View {
-        Group {
-            if let image = post.coverImage {
-                AsyncImage(url: image.imageURL) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
-                        thumbnailPlaceholder
+        VStack(alignment: .leading, spacing: 0) {
+            // Cover image — 4:3 aspect for visual appeal
+            Group {
+                if let image = post.coverImage {
+                    AsyncImage(url: image.imageURL) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable().scaledToFill()
+                        default:
+                            cardPlaceholder
+                        }
                     }
+                } else {
+                    cardPlaceholder
                 }
-            } else {
-                thumbnailPlaceholder
             }
+            .frame(height: 160)
+            .clipped()
+
+            // Text content below image
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                // Post text preview (max 2 lines)
+                Text(post.content)
+                    .font(BelongFont.captionMedium())
+                    .foregroundStyle(BelongColor.textPrimary)
+                    .lineLimit(2)
+
+                // Engagement row
+                HStack(spacing: Spacing.md) {
+                    Label("\(post.likeCount)", systemImage: "heart")
+                    Label("\(post.commentCount)", systemImage: "bubble.right")
+                }
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.textTertiary)
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.sm)
         }
-        .frame(minHeight: 110)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Post: \(post.content.prefix(60))")
     }
 
-    private var thumbnailPlaceholder: some View {
+    private var cardPlaceholder: some View {
         ZStack {
             BelongColor.surfaceSecondary
             Image(systemName: "text.quote")
-                .font(.system(size: 20))
+                .font(.system(size: 24))
                 .foregroundStyle(BelongColor.textTertiary)
         }
     }

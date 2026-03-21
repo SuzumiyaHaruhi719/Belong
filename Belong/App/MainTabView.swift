@@ -166,6 +166,12 @@ struct ProfileTabRoot: View {
     }
 }
 
+#Preview {
+    MainTabView()
+        .environment(AppState())
+        .environment(DependencyContainer())
+}
+
 struct CreateSelectorPlaceholder: View {
     @Environment(\.dismiss) private var dismiss
 

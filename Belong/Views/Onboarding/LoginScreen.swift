@@ -39,6 +39,26 @@ struct LoginHeader: View {
             Text("Log in to your Belong account")
                 .font(BelongFont.body())
                 .foregroundStyle(BelongColor.textSecondary)
+
+            #if DEBUG
+            // Dev-mode test credentials hint
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Test accounts (dev only)")
+                    .font(BelongFont.captionMedium())
+                    .foregroundStyle(BelongColor.primary)
+                Text("mai@unimelb.edu / Belong123!")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(BelongColor.textTertiary)
+                Text("test@test.edu / Test1234!")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+            .padding(Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BelongColor.surfaceSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+            .padding(.top, Spacing.sm)
+            #endif
         }
     }
 }
