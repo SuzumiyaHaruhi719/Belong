@@ -48,18 +48,7 @@ struct GatheringsFeedScreen: View {
                 await viewModel.loadFeed()
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                HStack(spacing: Spacing.sm) {
-                    Text("Belong")
-                        .font(BelongFont.display(24))
-                        .foregroundStyle(BelongColor.textPrimary)
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                GatheringsFeedNotificationButton(badgeCount: appState.unreadNotificationCount)
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -201,32 +190,37 @@ private struct WelcomeGreeting: View {
     let matchingTags: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            // "Welcome, Mai!" or just "Welcome!"
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            // App wordmark (moved here from toolbar so there's no nav bar)
+            Text("Belong")
+                .font(BelongFont.display(28))
+                .foregroundStyle(BelongColor.textPrimary)
+                .padding(.bottom, Spacing.xs)
+
+            // "Welcome, Mai!"
             (Text("Welcome, ")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
             + Text(name ?? "friend")
                 .font(BelongFont.h1())
-                .foregroundStyle(BelongColor.textPrimary)
+                .foregroundStyle(BelongColor.primary)
             + Text("!")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary))
 
-            // "Here's a pick for you"
-            (Text("Here's a pick ")
-                .font(BelongFont.h1())
-                .foregroundStyle(BelongColor.textPrimary)
+            // "Here's a curated pick for you"
+            (Text("Here's a curated pick ")
+                .font(BelongFont.body())
+                .foregroundStyle(BelongColor.textSecondary)
             + Text("for you")
-                .font(BelongFont.display(26))
+                .font(BelongFont.bodySemiBold())
                 .foregroundStyle(BelongColor.primary))
 
             // Tag explanation
             if !matchingTags.isEmpty {
-                Text("Based on your tags — \(matchingTags.prefix(4).joined(separator: ", ")).")
-                    .font(BelongFont.secondary())
+                Text("Based on \(matchingTags.prefix(3).joined(separator: ", "))")
+                    .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textTertiary)
-                    .padding(.top, 2)
             }
         }
     }
