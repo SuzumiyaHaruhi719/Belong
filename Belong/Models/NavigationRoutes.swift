@@ -29,6 +29,9 @@ enum ChatRoute: Hashable {
     case conversationInfo(String)  // conversationId
     case newConversation
     case groupChat(String)  // gatheringId
+    case notificationsComments
+    case notificationsLikes
+    case notificationsMentions
 }
 
 enum ProfileRoute: Hashable {

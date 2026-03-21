@@ -100,25 +100,28 @@ private struct NotificationIconStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            NotificationIconButton(
+            NotificationIconLink(
                 icon: "bubble.left.fill",
                 label: "Comments",
                 count: commentCount,
-                color: BelongColor.primary
+                color: BelongColor.primary,
+                destination: .notificationsComments
             )
 
-            NotificationIconButton(
+            NotificationIconLink(
                 icon: "heart.fill",
                 label: "Likes",
                 count: likeCount,
-                color: BelongColor.error
+                color: BelongColor.error,
+                destination: .notificationsLikes
             )
 
-            NotificationIconButton(
+            NotificationIconLink(
                 icon: "at",
                 label: "Mentions",
                 count: mentionCount,
-                color: BelongColor.sage
+                color: BelongColor.sage,
+                destination: .notificationsMentions
             )
         }
         .padding(.horizontal, Layout.screenPadding)
@@ -127,16 +130,19 @@ private struct NotificationIconStrip: View {
     }
 }
 
-// MARK: - Single Notification Icon Button
+// MARK: - Notification Icon Link
+// Uses NavigationLink instead of Button so tapping navigates to
+// the filtered notification list page.
 
-private struct NotificationIconButton: View {
+private struct NotificationIconLink: View {
     let icon: String
     let label: String
     let count: Int
     let color: Color
+    let destination: ChatRoute
 
     var body: some View {
-        Button(action: {}) {
+        NavigationLink(value: destination) {
             VStack(spacing: Spacing.xs) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: icon)

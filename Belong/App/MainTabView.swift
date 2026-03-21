@@ -116,6 +116,12 @@ struct ChatTabRoot: View {
                         NewConversationScreen()
                     case .groupChat(let gatheringId):
                         GroupChatScreen(gatheringId: gatheringId)
+                    case .notificationsComments:
+                        NotificationListScreen(filter: .comments)
+                    case .notificationsLikes:
+                        NotificationListScreen(filter: .likes)
+                    case .notificationsMentions:
+                        NotificationListScreen(filter: .mentions)
                     }
                 }
         }
