@@ -239,8 +239,10 @@ private struct ProfileCulturalTags: View {
                 }
             }
 
-            FlowLayout(spacing: Spacing.sm, data: ["Vietnamese", "English", "Food", "Cooking", "Hiking"]) { tag in
-                ChipView(title: tag, isSelected: true)
+            FlowLayout(spacing: Spacing.sm) {
+                ForEach(["Vietnamese", "English", "Food", "Cooking", "Hiking"], id: \.self) { tag in
+                    ChipView(title: tag, isSelected: true)
+                }
             }
         }
         .padding(.horizontal, Layout.screenPadding)

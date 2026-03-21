@@ -1,90 +1,89 @@
 import SwiftUI
 
-struct FlowLayout: View {
-    let spacing: CGFloat
-    let content: [AnyView]
+// MARK: - FlowLayout
+// A wrapping layout that places items in rows, breaking to the next row
+// when items would exceed the available width.
+//
+// Uses a two-pass approach: first measures all children to compute row
+// breaks and total height, then positions them. This avoids the
+// GeometryReader zero-height bug that caused overlap inside ScrollView.
 
-    init<Data: RandomAccessCollection, Content: View>(
-        spacing: CGFloat = 8,
-        data: Data,
-        @ViewBuilder content: @escaping (Data.Element) -> Content
-    ) where Data.Element: Hashable {
+struct FlowLayout: SwiftUI.Layout {
+    var spacing: CGFloat
+
+    init(spacing: CGFloat = 8) {
         self.spacing = spacing
-        self.content = data.map { AnyView(content($0)) }
     }
 
-    var body: some View {
-        GeometryReader { geometry in
-            FlowLayoutContent(
-                maxWidth: geometry.size.width,
-                spacing: spacing,
-                items: content
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: LayoutSubviews,
+        cache: inout ()
+    ) -> CGSize {
+        computeLayout(proposal: proposal, subviews: subviews).size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: LayoutSubviews,
+        cache: inout ()
+    ) {
+        let result = computeLayout(proposal: proposal, subviews: subviews)
+        for (index, position) in result.positions.enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+                proposal: ProposedViewSize(subviews[index].sizeThatFits(.unspecified))
             )
         }
-        .frame(height: nil)
     }
-}
 
-struct FlowLayoutContent: View {
-    let maxWidth: CGFloat
-    let spacing: CGFloat
-    let items: [AnyView]
+    private struct LayoutResult {
+        var positions: [CGPoint]
+        var size: CGSize
+    }
 
-    @State private var totalHeight: CGFloat = 0
-
-    var body: some View {
+    private func computeLayout(
+        proposal: ProposedViewSize,
+        subviews: LayoutSubviews
+    ) -> LayoutResult {
+        let maxWidth = proposal.width ?? .infinity
+        var positions: [CGPoint] = []
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var rowHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
 
-        return ZStack(alignment: .topLeading) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                item
-                    .alignmentGuide(.leading) { dimension in
-                        if abs(currentX - (-dimension.width)) > maxWidth {
-                            currentX = 0
-                            currentY += rowHeight + spacing
-                            rowHeight = 0
-                        }
-                        let result = currentX
-                        rowHeight = max(rowHeight, dimension.height)
-                        if index == items.count - 1 {
-                            currentX = 0
-                        } else {
-                            currentX -= (dimension.width + spacing)
-                        }
-                        return -result
-                    }
-                    .alignmentGuide(.top) { _ in
-                        let result = currentY
-                        if index == items.count - 1 {
-                            currentY = 0
-                        }
-                        return -result
-                    }
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            // Wrap to next row if this item exceeds available width
+            if currentX + size.width > maxWidth, currentX > 0 {
+                currentX = 0
+                currentY += rowHeight + spacing
+                rowHeight = 0
             }
+
+            positions.append(CGPoint(x: currentX, y: currentY))
+            rowHeight = max(rowHeight, size.height)
+            totalWidth = max(totalWidth, currentX + size.width)
+            currentX += size.width + spacing
         }
-        .background(
-            GeometryReader { geometry in
-                Color.clear.preference(key: FlowHeightKey.self, value: geometry.size.height)
-            }
-        )
-        .onPreferenceChange(FlowHeightKey.self) { totalHeight = $0 }
-        .frame(height: totalHeight)
-    }
-}
 
-private struct FlowHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+        let totalHeight = currentY + rowHeight
+        return LayoutResult(
+            positions: positions,
+            size: CGSize(width: totalWidth, height: totalHeight)
+        )
     }
 }
 
 #Preview {
-    let tags = ["Korean", "Food", "Study Group", "Cultural", "Music", "Language Exchange"]
-    return FlowLayout(spacing: 8, data: tags) { tag in
-        ChipView(title: tag, isSelected: tag == "Korean")
+    let tags = ["Korean", "Food", "Study Group", "Cultural", "Music", "Language Exchange", "Photography", "Hiking"]
+    FlowLayout(spacing: 8) {
+        ForEach(tags, id: \.self) { tag in
+            ChipView(title: tag, isSelected: tag == "Korean")
+        }
     }
     .padding()
     .background(BelongColor.background)

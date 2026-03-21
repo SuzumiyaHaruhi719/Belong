@@ -6,12 +6,14 @@ struct ChipGroup: View {
     var spacing: CGFloat = Spacing.sm
 
     var body: some View {
-        FlowLayout(spacing: spacing, data: options) { option in
-            ChipView(
-                title: option,
-                isSelected: selected.contains(option),
-                action: { toggle(option) }
-            )
+        FlowLayout(spacing: spacing) {
+            ForEach(options, id: \.self) { option in
+                ChipView(
+                    title: option,
+                    isSelected: selected.contains(option),
+                    action: { toggle(option) }
+                )
+            }
         }
     }
 

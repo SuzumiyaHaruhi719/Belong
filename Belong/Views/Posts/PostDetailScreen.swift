@@ -183,8 +183,10 @@ private struct PostDetailTagChips: View {
     let tags: [String]
 
     var body: some View {
-        FlowLayout(spacing: Spacing.sm, data: tags) { tag in
-            ChipView(title: tag, isSelected: true)
+        FlowLayout(spacing: Spacing.sm) {
+            ForEach(tags, id: \.self) { tag in
+                ChipView(title: tag, isSelected: true)
+            }
         }
     }
 }
