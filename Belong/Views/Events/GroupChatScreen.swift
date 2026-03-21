@@ -1,9 +1,18 @@
 import SwiftUI
 
 // MARK: - GroupChatScreen (S16)
-// Group chat for a gathering with pinned host message, message bubbles, and composer.
-// UX Decision: Current user messages are right-aligned with primary-color bubbles.
-// Pinned host message stays visible at top for key announcements.
+// Rich group chat for a gathering with pinned messages, reactions, replies,
+// typing indicator, date separators, and message context actions.
+//
+// UX Decisions:
+// - Current user messages right-aligned with primary-color bubbles for clear ownership.
+// - Pinned host message stays visible for key announcements (meeting point, dietary info).
+// - Long-press reveals quick reactions — low friction, no modal needed.
+// - Reply context shown inline so threaded conversations are easy to follow.
+// - Typing indicator gives social presence cues — event feels alive.
+// - System messages (join/leave/reminders) use muted centered style to avoid clutter.
+// - Scroll-to-bottom FAB appears when user has scrolled up, with unread badge.
+// - Failed messages show inline retry — never silently swallow send failures.
 
 struct GroupChatScreen: View {
     let gathering: Gathering
@@ -11,14 +20,21 @@ struct GroupChatScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Pinned host message
-            pinnedMessage
+            PinnedHostMessageBanner(messages: viewModel.messages)
 
-            // Messages
-            messageList
+            ChatMessageList(viewModel: viewModel)
 
-            // Composer
-            composer
+            TypingIndicatorBar(
+                isVisible: viewModel.isOtherUserTyping,
+                userName: viewModel.typingUserName
+            )
+
+            ReplyPreviewBar(
+                replyingTo: viewModel.replyingTo,
+                onCancel: viewModel.cancelReply
+            )
+
+            ChatComposer(viewModel: viewModel)
         }
         .background(BelongColor.background)
         .navigationTitle(gathering.title)
@@ -28,152 +44,6 @@ struct GroupChatScreen: View {
                 Text("\(gathering.attendeeCount) attending")
                     .font(BelongFont.secondary())
                     .foregroundStyle(BelongColor.textSecondary)
-            }
-        }
-    }
-
-    // MARK: - Pinned Host Message
-
-    @ViewBuilder
-    private var pinnedMessage: some View {
-        if let pinned = viewModel.messages.first(where: { $0.isPinned }) {
-            HStack(alignment: .top, spacing: Spacing.sm) {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(BelongColor.primary)
-                    .rotationEffect(.degrees(45))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pinned.senderName)
-                        .font(BelongFont.captionMedium())
-                        .foregroundStyle(BelongColor.textPrimary)
-                    Text(pinned.text)
-                        .font(BelongFont.secondary())
-                        .foregroundStyle(BelongColor.textSecondary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-            }
-            .padding(Spacing.md)
-            .background(BelongColor.surfaceSecondary)
-
-            Rectangle()
-                .fill(BelongColor.divider)
-                .frame(height: 1)
-        }
-    }
-
-    // MARK: - Message List
-
-    private var messageList: some View {
-        ScrollView {
-            LazyVStack(spacing: Spacing.base) {
-                ForEach(viewModel.messages.filter { !$0.isPinned }) { message in
-                    MessageBubble(message: message)
-                }
-            }
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.vertical, Spacing.md)
-        }
-        .defaultScrollAnchor(.bottom)
-    }
-
-    // MARK: - Composer
-
-    private var composer: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(BelongColor.divider)
-                .frame(height: 1)
-
-            HStack(alignment: .bottom, spacing: Spacing.sm) {
-                TextField("Message...", text: $viewModel.newMessageText, axis: .vertical)
-                    .lineLimit(1...4)
-                    .font(BelongFont.body())
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(BelongColor.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Layout.radiusLg)
-                            .strokeBorder(BelongColor.border, lineWidth: 1)
-                    }
-
-                Button {
-                    viewModel.sendMessage()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(
-                            viewModel.newMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? BelongColor.disabled
-                            : BelongColor.primary
-                        )
-                }
-                .disabled(viewModel.newMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel("Send message")
-            }
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.vertical, Spacing.sm)
-            .background(BelongColor.surface)
-        }
-    }
-}
-
-// MARK: - MessageBubble
-
-private struct MessageBubble: View {
-    let message: Message
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            if message.isCurrentUser {
-                Spacer(minLength: 60)
-                currentUserBubble
-            } else {
-                otherUserBubble
-                Spacer(minLength: 60)
-            }
-        }
-    }
-
-    private var currentUserBubble: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            Text(message.text)
-                .font(BelongFont.body())
-                .foregroundStyle(BelongColor.textOnPrimary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(BelongColor.primary)
-                .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-
-            Text(message.timestamp.formatted(.dateTime.hour().minute()))
-                .font(BelongFont.caption())
-                .foregroundStyle(BelongColor.textTertiary)
-        }
-    }
-
-    private var otherUserBubble: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            AvatarView(emoji: message.senderAvatarEmoji, size: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(message.senderName)
-                    .font(BelongFont.captionMedium())
-                    .foregroundStyle(BelongColor.textSecondary)
-
-                Text(message.text)
-                    .font(BelongFont.body())
-                    .foregroundStyle(BelongColor.textPrimary)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(BelongColor.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-
-                Text(message.timestamp.formatted(.dateTime.hour().minute()))
-                    .font(BelongFont.caption())
-                    .foregroundStyle(BelongColor.textTertiary)
             }
         }
     }

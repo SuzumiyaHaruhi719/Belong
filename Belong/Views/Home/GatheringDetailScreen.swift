@@ -31,7 +31,9 @@ struct GatheringDetailScreen: View {
         .navigationBarHidden(true)
         .sheet(isPresented: $viewModel.showJoinConfirmation) {
             if let selected = viewModel.selectedGathering {
-                JoinConfirmationSheet(gathering: selected)
+                JoinConfirmationSheet(gathering: selected) {
+                    viewModel.showJoinConfirmation = false
+                }
             }
         }
     }
@@ -257,67 +259,6 @@ struct GatheringDetailScreen: View {
     }
 }
 
-// MARK: - JoinConfirmationSheet
-
-struct JoinConfirmationSheet: View {
-    let gathering: Gathering
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: Spacing.xl) {
-            // Checkmark icon
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 56))
-                .foregroundStyle(BelongColor.success)
-                .padding(.top, Spacing.xxl)
-
-            Text("You're in!")
-                .font(BelongFont.h1())
-                .foregroundStyle(BelongColor.textPrimary)
-
-            Text("You've joined \(gathering.title). Check your events tab for details and the group chat.")
-                .font(BelongFont.body())
-                .foregroundStyle(BelongColor.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Layout.screenPadding)
-
-            // Gathering summary
-            VStack(spacing: Spacing.sm) {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(BelongColor.textTertiary)
-                    Text(gathering.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
-                        .font(BelongFont.secondary())
-                        .foregroundStyle(BelongColor.textSecondary)
-                }
-
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: "mappin")
-                        .foregroundStyle(BelongColor.textTertiary)
-                    Text(gathering.location)
-                        .font(BelongFont.secondary())
-                        .foregroundStyle(BelongColor.textSecondary)
-                }
-            }
-            .padding(Spacing.base)
-            .frame(maxWidth: .infinity)
-            .background(BelongColor.surfaceSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-            .padding(.horizontal, Layout.screenPadding)
-
-            Spacer()
-
-            BelongButton(title: "Done", style: .primary) {
-                dismiss()
-            }
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.bottom, Spacing.xxl)
-        }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-    }
-}
-
 #Preview("Gathering Detail") {
     NavigationStack {
         GatheringDetailScreen(
@@ -347,5 +288,5 @@ struct JoinConfirmationSheet: View {
 }
 
 #Preview("Join Confirmation") {
-    JoinConfirmationSheet(gathering: SampleData.topPick)
+    JoinConfirmationSheet(gathering: SampleData.topPick) {}
 }
