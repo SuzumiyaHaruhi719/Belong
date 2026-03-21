@@ -44,7 +44,6 @@ private struct ProfileScreenContent: View {
                 ProfileScrollContent(user: user, viewModel: viewModel)
             }
         }
-        .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -59,42 +58,47 @@ private struct ProfileScreenContent: View {
 }
 
 // MARK: - Scroll Content
+// UX: Cover banner → overlapping avatar → compact identity → stats →
+// tags → tabs → content. The cover creates visual personality. Avatar
+// overlaps the banner edge like Instagram/小红书 for a polished feel.
+// Top half is deliberately compact to give posts/gatherings maximum space.
 
 private struct ProfileScrollContent: View {
     let user: User
     @Bindable var viewModel: ProfileViewModel
 
-    // UX: Profile header is a compact identity section. The tab content below
-    // needs generous top spacing so it doesn't feel crushed against the tags.
-    // Cultural tags + tab selector get extra vertical padding for breathing room.
-
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                // Identity cluster — tighter internal spacing
-                ProfileHeaderSection(user: user)
-                    .padding(.bottom, Spacing.base)
+                // Cover banner with overlapping avatar
+                ProfileCoverBanner(user: user)
 
+                // Compact identity (name, username, bio, school)
+                ProfileCompactIdentity(user: user)
+                    .padding(.top, Spacing.xs)
+
+                // Stats row
                 ProfileStatsRow(user: user)
-                    .padding(.bottom, Spacing.base)
+                    .padding(.top, Spacing.sm)
+                    .padding(.bottom, Spacing.sm)
 
+                // Edit button (compact)
                 ProfileActionButtons()
-                    .padding(.bottom, Spacing.lg)
+                    .padding(.bottom, Spacing.sm)
 
+                // Cultural tags
                 ProfileCulturalTags()
-                    .padding(.bottom, Spacing.xl)
+                    .padding(.bottom, Spacing.md)
 
-                // Divider before tab area for visual separation
+                // Divider + tab selector
                 Rectangle()
                     .fill(BelongColor.divider)
                     .frame(height: 1)
-                    .padding(.horizontal, Layout.screenPadding)
-                    .padding(.bottom, Spacing.base)
 
                 ProfileTabSelector(selectedTab: $viewModel.selectedProfileTab)
-                    .padding(.bottom, Spacing.lg)
+                    .padding(.vertical, Spacing.sm)
 
-                // Tab content with generous top breathing room
+                // Content area — gets the most space
                 switch viewModel.selectedProfileTab {
                 case .posts:
                     ProfilePostsGrid(posts: viewModel.myPosts)
@@ -107,57 +111,113 @@ private struct ProfileScrollContent: View {
     }
 }
 
-// MARK: - Header
+// MARK: - Cover Banner
+// UX: Profile background creates visual personality. Default is a warm
+// gradient matching the app palette. Users can set a custom photo or
+// pick from presets. Avatar overlaps the bottom edge of the banner.
 
-private struct ProfileHeaderSection: View {
+private struct ProfileCoverBanner: View {
     let user: User
+    private let bannerHeight: CGFloat = 150
+    private let avatarOverlap: CGFloat = 32
 
     var body: some View {
-        VStack(spacing: Spacing.md) {
+        ZStack(alignment: .bottom) {
+            // Banner image or default gradient
+            if let bgURL = user.profileBackgroundURL {
+                AsyncImage(url: bgURL) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        defaultGradient
+                    }
+                }
+                .frame(height: bannerHeight)
+                .clipped()
+            } else {
+                defaultGradient
+                    .frame(height: bannerHeight)
+            }
+
+            // Avatar overlapping banner bottom
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(imageURL: user.avatarURL, emoji: SampleData.avatarEmoji(for: user.id), size: .xlarge)
+                AvatarView(
+                    imageURL: user.avatarURL,
+                    emoji: SampleData.avatarEmoji(for: user.id),
+                    size: .xlarge
+                )
+                .frame(width: 68, height: 68)
+                .background(BelongColor.background)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(BelongColor.background, lineWidth: 3))
+
                 NavigationLink(value: ProfileRoute.editProfile) {
                     Image(systemName: "camera.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(BelongColor.textOnPrimary)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 22, height: 22)
                         .background(BelongColor.primary)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(BelongColor.surface, lineWidth: 2))
+                        .overlay(Circle().stroke(BelongColor.background, lineWidth: 2))
                 }
                 .accessibilityLabel("Edit avatar")
             }
+            .offset(y: avatarOverlap)
+        }
+        .padding(.bottom, avatarOverlap)
+    }
 
+    private var defaultGradient: some View {
+        LinearGradient(
+            colors: [
+                BelongColor.primary.opacity(0.35),
+                BelongColor.surfaceSecondary,
+                BelongColor.background
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+// MARK: - Compact Identity
+
+private struct ProfileCompactIdentity: View {
+    let user: User
+
+    var body: some View {
+        VStack(spacing: 2) {
             Text(user.displayName)
-                .font(BelongFont.h1())
+                .font(BelongFont.h2())
                 .foregroundStyle(BelongColor.textPrimary)
 
             Text("@\(user.username)")
-                .font(BelongFont.secondary())
+                .font(BelongFont.caption())
                 .foregroundStyle(BelongColor.textSecondary)
 
             if !user.bio.isEmpty {
                 Text(user.bio)
-                    .font(BelongFont.secondary())
+                    .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textPrimary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, Spacing.xl)
+                    .lineLimit(2)
+                    .padding(.horizontal, Spacing.xxl)
+                    .padding(.top, 2)
             }
 
             HStack(spacing: Spacing.sm) {
                 if !user.school.isEmpty {
                     Label(user.school, systemImage: "graduationcap")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.textSecondary)
                 }
                 if !user.city.isEmpty {
                     Label(user.city, systemImage: "mappin")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.textSecondary)
                 }
             }
+            .font(BelongFont.caption())
+            .foregroundStyle(BelongColor.textTertiary)
+            .padding(.top, 2)
         }
-        .padding(.top, Spacing.base)
     }
 }
 
@@ -187,9 +247,9 @@ private struct ProfileStatColumn: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: Spacing.xs) {
+        VStack(spacing: 1) {
             Text("\(count)")
-                .font(BelongFont.h2())
+                .font(BelongFont.bodySemiBold())
                 .foregroundStyle(BelongColor.textPrimary)
             Text(label)
                 .font(BelongFont.caption())
@@ -199,24 +259,22 @@ private struct ProfileStatColumn: View {
     }
 }
 
-// MARK: - Action Buttons
+// MARK: - Action Buttons (compact)
 
 private struct ProfileActionButtons: View {
     var body: some View {
-        HStack(spacing: Spacing.md) {
-            NavigationLink(value: ProfileRoute.editProfile) {
-                Text("Edit Profile")
-                    .font(BelongFont.button())
-                    .foregroundStyle(BelongColor.primary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: Layout.buttonHeight)
-                    .background(BelongColor.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Layout.radiusMd)
-                            .stroke(BelongColor.primary, lineWidth: 1.5)
-                    )
-            }
+        NavigationLink(value: ProfileRoute.editProfile) {
+            Text("Edit Profile")
+                .font(BelongFont.secondaryMedium())
+                .foregroundStyle(BelongColor.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 34)
+                .background(BelongColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Layout.radiusSm)
+                        .stroke(BelongColor.border, lineWidth: 1)
+                )
         }
         .padding(.horizontal, Layout.screenPadding)
     }
@@ -226,20 +284,20 @@ private struct ProfileActionButtons: View {
 
 private struct ProfileCulturalTags: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack {
                 Text("Cultural Tags")
-                    .font(BelongFont.h3())
+                    .font(BelongFont.secondaryMedium())
                     .foregroundStyle(BelongColor.textPrimary)
                 Spacer()
                 NavigationLink(value: ProfileRoute.editTags) {
                     Text("Edit")
-                        .font(BelongFont.secondaryMedium())
+                        .font(BelongFont.caption())
                         .foregroundStyle(BelongColor.primary)
                 }
             }
 
-            FlowLayout(spacing: Spacing.sm) {
+            FlowLayout(spacing: Spacing.xs) {
                 ForEach(["Vietnamese", "English", "Food", "Cooking", "Hiking"], id: \.self) { tag in
                     ChipView(title: tag, isSelected: true)
                 }
@@ -265,10 +323,7 @@ private struct ProfileTabSelector: View {
     }
 }
 
-// MARK: - Posts Grid (小红书-style 2-column)
-// UX: 2 columns gives each post enough room to show a preview image plus
-// title and engagement info. This matches the discovery-oriented feel of
-// the Posts tab — users scan visually, not just by thumbnails.
+// MARK: - Posts Grid (2-column 小红书-style)
 
 private struct ProfilePostsGrid: View {
     let posts: [Post]
@@ -300,48 +355,47 @@ private struct ProfilePostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Cover image — 4:3 aspect for visual appeal
-            Group {
-                if let image = post.coverImage {
-                    AsyncImage(url: image.imageURL) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFill()
-                        default:
-                            cardPlaceholder
-                        }
-                    }
-                } else {
-                    cardPlaceholder
-                }
-            }
-            .frame(height: 160)
-            .clipped()
+            postImage
+                .frame(maxWidth: .infinity)
+                .frame(height: 140)
+                .clipped()
 
-            // Text content below image
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                // Post text preview (max 2 lines)
                 Text(post.content)
                     .font(BelongFont.captionMedium())
                     .foregroundStyle(BelongColor.textPrimary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                // Engagement row
-                HStack(spacing: Spacing.md) {
+                HStack(spacing: Spacing.sm) {
                     Label("\(post.likeCount)", systemImage: "heart")
                     Label("\(post.commentCount)", systemImage: "bubble.right")
                 }
                 .font(BelongFont.caption())
                 .foregroundStyle(BelongColor.textTertiary)
             }
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.sm)
+            .padding(Spacing.sm)
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .contentShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
         .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Post: \(post.content.prefix(60))")
+    }
+
+    @ViewBuilder
+    private var postImage: some View {
+        if let image = post.coverImage {
+            AsyncImage(url: image.imageURL) { phase in
+                switch phase {
+                case .success(let img):
+                    img.resizable().scaledToFill()
+                default:
+                    cardPlaceholder
+                }
+            }
+        } else {
+            cardPlaceholder
+        }
     }
 
     private var cardPlaceholder: some View {
@@ -385,16 +439,19 @@ private struct ProfileGatheringsList: View {
 private struct ProfileScreenLoading: View {
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.lg) {
-                SkeletonView(width: 80, height: 80, cornerRadius: 40)
-                SkeletonView(width: 140, height: 24)
-                SkeletonView(width: 100, height: 16)
-                SkeletonView(height: 40)
+            VStack(spacing: 0) {
+                SkeletonView(height: 150)
+                SkeletonView(width: 68, height: 68, cornerRadius: 34)
+                    .offset(y: -32)
+                    .padding(.bottom, -24)
+                SkeletonView(width: 140, height: 20)
+                    .padding(.top, Spacing.sm)
+                SkeletonView(width: 100, height: 14)
+                    .padding(.top, Spacing.xs)
+                SkeletonView(height: 34)
                     .padding(.horizontal, Layout.screenPadding)
-                SkeletonCard()
-                    .padding(.horizontal, Layout.screenPadding)
+                    .padding(.top, Spacing.md)
             }
-            .padding(.top, Spacing.xl)
         }
     }
 }

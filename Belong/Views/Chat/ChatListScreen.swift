@@ -1,5 +1,13 @@
 import SwiftUI
 
+// MARK: - ChatListScreen
+// UX Redesign: Notifications are NOT a separate tab — they're 3 compact icon
+// buttons at the top (Comments, Likes, Mentions). Each opens its own page.
+// The remaining 3/4 of the screen is dedicated to chat conversations.
+//
+// This matches the user's mental model: "Chat" = messages. Notifications
+// are a secondary glanceable feature, not competing for equal space.
+
 struct ChatListScreen: View {
     @Environment(DependencyContainer.self) private var container
     @State private var viewModel: ChatListViewModel?
@@ -34,15 +42,14 @@ private struct ChatListContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Segment", selection: $viewModel.selectedSegment) {
-                ForEach(ChatSegment.allCases, id: \.self) { segment in
-                    Text(segment.rawValue).tag(segment)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.vertical, Spacing.sm)
+            // Notification icons strip at top
+            NotificationIconStrip(viewModel: viewModel)
 
+            Rectangle()
+                .fill(BelongColor.divider)
+                .frame(height: 1)
+
+            // Chat conversations take the rest of the space
             if let error = viewModel.error {
                 ErrorStateView(message: error, onRetry: {
                     Task { await viewModel.loadAll() }
@@ -50,17 +57,13 @@ private struct ChatListContent: View {
             } else if viewModel.isLoading {
                 ChatListLoadingView()
             } else {
-                switch viewModel.selectedSegment {
-                case .notifications:
-                    ChatListNotificationsView(viewModel: viewModel)
-                case .messages:
-                    ChatListMessagesView(viewModel: viewModel)
-                }
+                ChatConversationsList(viewModel: viewModel)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BelongColor.background)
         .navigationTitle("Chat")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink(value: ChatRoute.newConversation) {
@@ -69,6 +72,123 @@ private struct ChatListContent: View {
                         .foregroundStyle(BelongColor.primary)
                 }
                 .accessibilityLabel("New message")
+            }
+        }
+    }
+}
+
+// MARK: - Notification Icon Strip
+// Three icon buttons: Comments, Likes, Mentions (@).
+// Each shows a badge count and opens a filtered notification page.
+// UX: Compact horizontal strip takes minimal vertical space,
+// leaving maximum room for the conversation list below.
+
+private struct NotificationIconStrip: View {
+    let viewModel: ChatListViewModel
+
+    private var commentCount: Int {
+        viewModel.notifications.filter { !$0.isRead && $0.type == .comment }.count
+    }
+
+    private var likeCount: Int {
+        viewModel.notifications.filter { !$0.isRead && $0.type == .like }.count
+    }
+
+    private var mentionCount: Int {
+        viewModel.notifications.filter { !$0.isRead && $0.type == .mention }.count
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            NotificationIconButton(
+                icon: "bubble.left.fill",
+                label: "Comments",
+                count: commentCount,
+                color: BelongColor.primary
+            )
+
+            NotificationIconButton(
+                icon: "heart.fill",
+                label: "Likes",
+                count: likeCount,
+                color: BelongColor.error
+            )
+
+            NotificationIconButton(
+                icon: "at",
+                label: "Mentions",
+                count: mentionCount,
+                color: BelongColor.sage
+            )
+        }
+        .padding(.horizontal, Layout.screenPadding)
+        .padding(.vertical, Spacing.sm)
+        .background(BelongColor.surface)
+    }
+}
+
+// MARK: - Single Notification Icon Button
+
+private struct NotificationIconButton: View {
+    let icon: String
+    let label: String
+    let count: Int
+    let color: Color
+
+    var body: some View {
+        Button(action: {}) {
+            VStack(spacing: Spacing.xs) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: icon)
+                        .font(.system(size: 20))
+                        .foregroundStyle(color)
+                        .frame(width: 44, height: 36)
+
+                    if count > 0 {
+                        Text("\(min(count, 99))")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 16, minHeight: 16)
+                            .background(BelongColor.error)
+                            .clipShape(Circle())
+                            .offset(x: 4, y: -2)
+                    }
+                }
+
+                Text(label)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(label), \(count) unread")
+    }
+}
+
+// MARK: - Conversations List
+
+private struct ChatConversationsList: View {
+    let viewModel: ChatListViewModel
+
+    var body: some View {
+        if viewModel.filteredConversations.isEmpty {
+            EmptyStateView(
+                icon: "bubble.left.and.bubble.right",
+                title: "No conversations yet",
+                message: "Start a conversation with someone from a gathering or your community."
+            )
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(viewModel.filteredConversations) { conversation in
+                        NavigationLink(value: ChatRoute.conversation(conversation)) {
+                            ConversationRow(conversation: conversation)
+                        }
+                        Divider().padding(.leading, Layout.screenPadding + 56)
+                    }
+                }
             }
         }
     }
@@ -91,95 +211,6 @@ private struct ChatListLoadingView: View {
                     }
                     .padding(.horizontal, Layout.screenPadding)
                     .padding(.vertical, Spacing.sm)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Notifications Segment
-
-private struct ChatListNotificationsView: View {
-    let viewModel: ChatListViewModel
-
-    var body: some View {
-        if viewModel.notifications.isEmpty {
-            EmptyStateView(
-                icon: "bell.slash",
-                title: "No notifications",
-                message: "When someone interacts with your posts or gatherings, you'll see it here."
-            )
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    if !viewModel.unreadNotifications.isEmpty {
-                        ChatListNotificationSectionHeader(title: "New", viewModel: viewModel)
-                        ForEach(viewModel.unreadNotifications) { notification in
-                            NotificationRow(notification: notification) {
-                                Task { await viewModel.markNotificationRead(id: notification.id) }
-                            }
-                            Divider().padding(.leading, Layout.screenPadding + 48)
-                        }
-                    }
-
-                    if !viewModel.readNotifications.isEmpty {
-                        ChatListNotificationSectionHeader(title: "Earlier", viewModel: nil)
-                        ForEach(viewModel.readNotifications) { notification in
-                            NotificationRow(notification: notification)
-                            Divider().padding(.leading, Layout.screenPadding + 48)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct ChatListNotificationSectionHeader: View {
-    let title: String
-    let viewModel: ChatListViewModel?
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(BelongFont.secondaryMedium())
-                .foregroundStyle(BelongColor.textSecondary)
-            Spacer()
-            if let viewModel {
-                Button("Mark all read") {
-                    Task { await viewModel.markAllNotificationsRead() }
-                }
-                .font(BelongFont.secondary())
-                .foregroundStyle(BelongColor.primary)
-            }
-        }
-        .padding(.horizontal, Layout.screenPadding)
-        .padding(.vertical, Spacing.sm)
-        .background(BelongColor.background)
-    }
-}
-
-// MARK: - Messages Segment
-
-private struct ChatListMessagesView: View {
-    let viewModel: ChatListViewModel
-
-    var body: some View {
-        if viewModel.filteredConversations.isEmpty {
-            EmptyStateView(
-                icon: "bubble.left.and.bubble.right",
-                title: "No conversations yet",
-                message: "Start a conversation with someone from a gathering or your community."
-            )
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(viewModel.filteredConversations) { conversation in
-                        NavigationLink(value: ChatRoute.conversation(conversation)) {
-                            ConversationRow(conversation: conversation)
-                        }
-                        Divider().padding(.leading, Layout.screenPadding + 56)
-                    }
                 }
             }
         }

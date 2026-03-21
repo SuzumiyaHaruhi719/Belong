@@ -13,7 +13,8 @@ struct PostsFeedScreen: View {
             }
         }
         .background(BelongColor.background)
-        .navigationTitle("Community")
+        .navigationTitle("Posts")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             if viewModel == nil {
                 let vm = PostsFeedViewModel(container: container)

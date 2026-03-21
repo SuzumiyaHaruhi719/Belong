@@ -7,6 +7,8 @@ struct User: Identifiable, Codable, Hashable {
     var displayName: String
     var avatarURL: URL?
     var defaultAvatarId: Int?
+    var profileBackgroundURL: URL? = nil    // Custom uploaded cover photo
+    var defaultBackgroundId: Int? = nil     // Index into preset backgrounds (nil = warm gradient)
     var bio: String
     var city: String
     var school: String
