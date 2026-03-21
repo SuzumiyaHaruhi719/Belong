@@ -1,89 +1,80 @@
 import SwiftUI
 
-// MARK: - AvatarView
-// Shows either a photo (AsyncImage) or an emoji fallback.
-// Spec: Profile avatar is 80×80pt. Attendee avatars vary by context.
+enum AvatarSize: CGFloat {
+    case small = 32
+    case medium = 40
+    case large = 52
+    case xlarge = 80
+
+    var fontSize: CGFloat {
+        switch self {
+        case .small: 14
+        case .medium: 18
+        case .large: 24
+        case .xlarge: 36
+        }
+    }
+}
 
 struct AvatarView: View {
-    let emoji: String
     var imageURL: URL? = nil
-    var size: CGFloat = 80
+    var emoji: String = ""
+    var size: AvatarSize = .medium
 
     var body: some View {
-        Group {
-            if let imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    default:
-                        emojiFallback
-                    }
-                }
-            } else {
-                emojiFallback
+        if let url = imageURL {
+            AvatarAsyncImage(url: url, size: size)
+        } else {
+            AvatarEmojiFallback(emoji: emoji, size: size)
+        }
+    }
+}
+
+struct AvatarAsyncImage: View {
+    let url: URL
+    let size: AvatarSize
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            case .failure:
+                AvatarEmojiFallback(emoji: "?", size: size)
+            default:
+                Circle()
+                    .fill(BelongColor.skeleton)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: size.rawValue, height: size.rawValue)
         .clipShape(Circle())
-        .accessibilityLabel("Avatar")
     }
+}
 
-    private var emojiFallback: some View {
+struct AvatarEmojiFallback: View {
+    let emoji: String
+    let size: AvatarSize
+
+    var body: some View {
         ZStack {
             Circle()
                 .fill(BelongColor.surfaceSecondary)
-            Text(emoji)
-                .font(.system(size: size * 0.45))
+            Text(emoji.isEmpty ? "?" : emoji)
+                .font(.system(size: size.fontSize))
         }
+        .frame(width: size.rawValue, height: size.rawValue)
     }
 }
 
-// MARK: - AvatarGrid
-// Spec S07: 8–10 default avatar options in a grid for selection.
-
-struct AvatarGrid: View {
-    let avatars: [String]
-    @Binding var selected: String
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: Spacing.base), count: 5)
-
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: Spacing.base) {
-            ForEach(avatars, id: \.self) { emoji in
-                Button {
-                    selected = emoji
-                } label: {
-                    Text(emoji)
-                        .font(.system(size: 32))
-                        .frame(width: 56, height: 56)
-                        .background(selected == emoji ? BelongColor.surfaceSecondary : BelongColor.surface)
-                        .clipShape(Circle())
-                        .overlay {
-                            Circle()
-                                .strokeBorder(selected == emoji ? BelongColor.primary : BelongColor.border, lineWidth: selected == emoji ? 2 : 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Avatar \(emoji)")
-                .accessibilityAddTraits(selected == emoji ? [.isButton, .isSelected] : .isButton)
-            }
-        }
+#Preview {
+    HStack(spacing: Spacing.base) {
+        AvatarView(emoji: "🧑‍🍳", size: .small)
+        AvatarView(emoji: "🎎", size: .medium)
+        AvatarView(emoji: "🌸", size: .large)
+        AvatarView(emoji: "🎭", size: .xlarge)
     }
-}
-
-#Preview("Avatars") {
-    struct Preview: View {
-        @State var selected = "🌿"
-        var body: some View {
-            VStack(spacing: 24) {
-                AvatarView(emoji: "🌿")
-                AvatarView(emoji: "🌸", size: 40)
-                AvatarGrid(avatars: SampleData.defaultAvatars, selected: $selected)
-            }
-            .padding()
-            .background(BelongColor.background)
-        }
-    }
-    return Preview()
+    .padding()
+    .background(BelongColor.background)
 }

@@ -1,43 +1,38 @@
 import Foundation
 
-// MARK: - User Model
-
 struct User: Identifiable, Codable, Hashable {
     let id: String
     var email: String
     var username: String
     var displayName: String
     var avatarURL: URL?
-    var avatarEmoji: String   // Default avatar if no photo
+    var defaultAvatarId: Int?
+    var bio: String
     var city: String
     var school: String
-    var language: String
-    var culturalTags: CulturalTags
-    var stats: UserStats
+    var appLanguage: String  // "en", "zh", "ko"
+    var privacyProfile: PrivacyLevel  // public, schoolOnly, followersOnly
+    var privacyDM: DMPrivacy  // mutualOnly, everyone
+    var notificationsEnabled: Bool
+    var followerCount: Int
+    var followingCount: Int
+    var mutualCount: Int
+    var gatheringsAttended: Int
+    var gatheringsHosted: Int
+    var postCount: Int
+    var createdAt: Date
+    var lastActiveAt: Date
 
-    var isOnboardingComplete: Bool {
-        !city.isEmpty && !school.isEmpty
-    }
+    var isOnboardingComplete: Bool { !city.isEmpty && !school.isEmpty }
 }
 
-struct CulturalTags: Codable, Hashable {
-    var background: [String]
-    var languages: [String]
-    var interests: [String]
-
-    var isEmpty: Bool {
-        background.isEmpty && languages.isEmpty && interests.isEmpty
-    }
-
-    var allTags: [String] {
-        background + languages + interests
-    }
-
-    static let empty = CulturalTags(background: [], languages: [], interests: [])
+enum PrivacyLevel: String, Codable, CaseIterable {
+    case publicProfile = "public"
+    case schoolOnly = "school_only"
+    case followersOnly = "followers_only"
 }
 
-struct UserStats: Codable, Hashable {
-    var attended: Int
-    var hosted: Int
-    var connections: Int
+enum DMPrivacy: String, Codable, CaseIterable {
+    case mutualOnly = "mutual_only"
+    case everyone = "everyone"
 }

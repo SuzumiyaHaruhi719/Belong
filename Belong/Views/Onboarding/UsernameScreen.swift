@@ -1,124 +1,135 @@
 import SwiftUI
 
-// MARK: - UsernameScreen (S05)
-// Username selection with real-time availability check (debounced).
-// ProgressBarView step 4 of 4.
-
 struct UsernameScreen: View {
-    let viewModel: OnboardingViewModel
-    let onContinue: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    /// Debounce identifier — changes trigger .task(id:) re-evaluation
-    @State private var usernameDebounceID = 0
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 0) {
+            ProgressBarView(totalSegments: 4, filledSegments: 4)
+                .padding(.horizontal, Layout.screenPadding)
+                .padding(.top, Spacing.sm)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.xl) {
-                    ProgressBarView(totalSteps: 4, currentStep: 4)
-                        .padding(.top, Spacing.sm)
-
-                    // Header
-                    Text("Pick a username")
-                        .font(BelongFont.h1())
-                        .foregroundStyle(BelongColor.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-
-                    // Username field with status indicator
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        BelongTextField(
-                            label: "Username",
-                            text: Bindable(viewModel).username,
-                            placeholder: "your.username",
-                            errorMessage: viewModel.usernameError,
-                            characterLimit: 20,
-                            autocapitalization: .never,
-                            leadingIcon: "at"
-                        )
-
-                        // Availability status
-                        HStack(spacing: Spacing.xs) {
-                            if viewModel.isCheckingUsername {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(BelongColor.textTertiary)
-                                Text("Checking availability...")
-                                    .font(BelongFont.caption())
-                                    .foregroundStyle(BelongColor.textTertiary)
-                            } else if let available = viewModel.usernameAvailable {
-                                if available {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(BelongColor.success)
-                                        .font(.system(size: 14))
-                                    Text("Username is available")
-                                        .font(BelongFont.caption())
-                                        .foregroundStyle(BelongColor.success)
-                                } else {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(BelongColor.error)
-                                        .font(.system(size: 14))
-                                    Text("Username is taken")
-                                        .font(BelongFont.caption())
-                                        .foregroundStyle(BelongColor.error)
-                                }
-                            }
-                        }
-                        .accessibilityElement(children: .combine)
-                    }
-
-                    Spacer(minLength: Spacing.xl)
-
-                    // Continue button
-                    BelongButton(
-                        title: "Continue",
-                        style: .primary,
-                        isDisabled: !viewModel.isUsernameValid
-                    ) {
-                        onContinue()
-                    }
-                    .accessibilityHint("Continue to email confirmation")
+                    UsernameHeader()
+                    UsernameInput()
+                    UsernameAvailabilityIndicator()
+                    UsernameContinueButton(path: $path)
                 }
                 .padding(.horizontal, Layout.screenPadding)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .scrollDismissesKeyboard(.interactively)
-        }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(BelongColor.textPrimary)
-                }
-                .accessibilityLabel("Back")
+                .padding(.top, Spacing.xxl)
             }
         }
+        .background(BelongColor.background)
+        .navigationBarBackButtonHidden(false)
+    }
+}
+
+struct UsernameHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Pick a username")
+                .font(BelongFont.h1())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            Text("This is how other students will find you.")
+                .font(BelongFont.body())
+                .foregroundStyle(BelongColor.textSecondary)
+        }
+    }
+}
+
+struct UsernameInput: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+        BelongTextField(
+            label: "Username",
+            text: $vm.username,
+            placeholder: "your.username",
+            errorMessage: usernameError,
+            characterLimit: 30,
+            leadingIcon: "at"
+        )
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
+        .accessibilityLabel("Username")
         .onChange(of: viewModel.username) { _, _ in
-            usernameDebounceID += 1
-            viewModel.usernameAvailable = nil
-            viewModel.usernameError = nil
+            viewModel.checkUsername()
         }
-        .task(id: usernameDebounceID) {
-            // Debounce: wait 500ms before checking availability
-            try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
-            await viewModel.checkUsernameAvailability()
+    }
+
+    private var usernameError: String? {
+        guard !viewModel.username.isEmpty else { return nil }
+        if viewModel.username.count < 3 { return "Must be at least 3 characters" }
+        if viewModel.usernameAvailable == false { return "This username is taken" }
+        return nil
+    }
+}
+
+struct UsernameAvailabilityIndicator: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            if viewModel.isCheckingUsername {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(BelongColor.primary)
+                Text("Checking availability...")
+                    .font(BelongFont.secondary())
+                    .foregroundStyle(BelongColor.textTertiary)
+            } else if let available = viewModel.usernameAvailable, viewModel.username.count >= 3 {
+                if available {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(BelongColor.success)
+                    Text("Username is available")
+                        .font(BelongFont.secondary())
+                        .foregroundStyle(BelongColor.success)
+                } else {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(BelongColor.error)
+                    Text("Username is taken")
+                        .font(BelongFont.secondary())
+                        .foregroundStyle(BelongColor.error)
+                }
+            }
+        }
+    }
+}
+
+struct UsernameContinueButton: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Continue",
+            style: .primary,
+            isFullWidth: true,
+            isLoading: viewModel.isRegistering,
+            isDisabled: !viewModel.isUsernameValid
+        ) {
+            Task {
+                if let _ = await viewModel.register() {
+                    path.append(.emailConfirmed)
+                }
+            }
         }
     }
 }
 
 #Preview {
-    NavigationStack {
-        UsernameScreen(
-            viewModel: OnboardingViewModel(),
-            onContinue: {}
-        )
+    struct UsernamePreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                UsernameScreen(path: $path)
+            }
+            .environment(OnboardingViewModel(deps: DependencyContainer()))
+        }
     }
+    return UsernamePreview()
 }

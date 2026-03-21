@@ -1,20 +1,16 @@
 import Foundation
 
-// MARK: - Post-event feedback emoji options
-// Spec: 5 emojis at 64×64pt — 😕 🙂 😊 🎉 🤝
-// Each has a semantic label for accessibility.
-
 struct FeedbackEmoji: Identifiable, Hashable {
     let id: String
     let emoji: String
     let label: String
-    let value: Int   // 1–5 rating
+    let score: Int
 
     static let options: [FeedbackEmoji] = [
-        FeedbackEmoji(id: "meh", emoji: "😕", label: "Not great", value: 1),
-        FeedbackEmoji(id: "okay", emoji: "🙂", label: "It was okay", value: 2),
-        FeedbackEmoji(id: "good", emoji: "😊", label: "Enjoyed it", value: 3),
-        FeedbackEmoji(id: "great", emoji: "🎉", label: "Loved it!", value: 4),
-        FeedbackEmoji(id: "connected", emoji: "🤝", label: "Made connections", value: 5),
+        .init(id: "meh", emoji: "😕", label: "Meh", score: 1),
+        .init(id: "okay", emoji: "🙂", label: "Okay", score: 2),
+        .init(id: "good", emoji: "😊", label: "Good", score: 3),
+        .init(id: "great", emoji: "🎉", label: "Great!", score: 4),
+        .init(id: "amazing", emoji: "🤝", label: "Amazing", score: 5),
     ]
 }

@@ -1,83 +1,49 @@
 import Foundation
 
-// MARK: - Chat Message
-
 struct Message: Identifiable, Codable, Hashable {
     let id: String
-    let senderName: String
-    let senderAvatarEmoji: String
-    let text: String
-    let timestamp: Date
-    let isCurrentUser: Bool
-    let isPinned: Bool
-
-    // Rich message features
+    let conversationId: String
+    let senderId: String
+    var content: String?
+    var imageURL: URL?
+    var sharedPostId: String?
     var messageType: MessageType
-    var replyTo: ReplyReference?
     var reactions: [MessageReaction]
-    var readByCount: Int
-    var status: MessageStatus
-
-    init(
-        id: String,
-        senderName: String,
-        senderAvatarEmoji: String,
-        text: String,
-        timestamp: Date,
-        isCurrentUser: Bool,
-        isPinned: Bool,
-        messageType: MessageType = .text,
-        replyTo: ReplyReference? = nil,
-        reactions: [MessageReaction] = [],
-        readByCount: Int = 0,
-        status: MessageStatus = .sent
-    ) {
-        self.id = id
-        self.senderName = senderName
-        self.senderAvatarEmoji = senderAvatarEmoji
-        self.text = text
-        self.timestamp = timestamp
-        self.isCurrentUser = isCurrentUser
-        self.isPinned = isPinned
-        self.messageType = messageType
-        self.replyTo = replyTo
-        self.reactions = reactions
-        self.readByCount = readByCount
-        self.status = status
-    }
+    var replyTo: ReplyReference?
+    var status: MessageDeliveryStatus
+    let createdAt: Date
+    // Denormalized
+    var senderName: String
+    var senderAvatarEmoji: String
+    var isCurrentUser: Bool
+    var sharedPostPreview: SharedPostPreview?
 }
 
-// MARK: - Message Type
-
-enum MessageType: String, Codable, Hashable {
-    case text
-    case image
-    case system   // "Mai joined the group", "Event starts in 1 hour"
+enum MessageType: String, Codable {
+    case text, image
+    case sharedPost = "shared_post"
+    case system
 }
 
-// MARK: - Reply Reference
-/// Lightweight reference to a parent message for threading.
-
-struct ReplyReference: Codable, Hashable {
-    let messageId: String
-    let senderName: String
-    let previewText: String  // Truncated to ~60 chars
+enum MessageDeliveryStatus: String, Codable {
+    case sending, sent, delivered, read, failed
 }
-
-// MARK: - Message Reaction
 
 struct MessageReaction: Codable, Hashable {
     let emoji: String
     var count: Int
-    var hasReacted: Bool  // Current user reacted
+    var hasReacted: Bool
 }
 
-// MARK: - Message Status
+struct ReplyReference: Codable, Hashable {
+    let messageId: String
+    let senderName: String
+    let previewText: String
+}
 
-enum MessageStatus: String, Codable, Hashable {
-    case sending
-    case sent
-    case delivered
-    case read
-    case failed
+struct SharedPostPreview: Codable, Hashable {
+    let postId: String
+    let imageURL: URL?
+    let title: String
+    let authorName: String
 }

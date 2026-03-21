@@ -1,80 +1,96 @@
 import SwiftUI
 
-// MARK: - LanguageScreen (S08)
-// App language selection from a scrollable list.
-// Selected row shows checkmark and highlighted background.
-
 struct LanguageScreen: View {
-    let viewModel: OnboardingViewModel
-    let onContinue: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
+        VStack(spacing: 0) {
+            LanguageHeader()
+                .padding(.horizontal, Layout.screenPadding)
+                .padding(.top, Spacing.xl)
 
-            VStack(spacing: Spacing.xl) {
-                // Header
-                Text("Choose your language")
-                    .font(BelongFont.h1())
-                    .foregroundStyle(BelongColor.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Layout.screenPadding)
-                    .padding(.top, Spacing.sm)
-                    .accessibilityAddTraits(.isHeader)
+            LanguageList()
 
-                // Language list
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(SampleData.languages, id: \.code) { language in
-                            languageRow(language)
-                        }
-                    }
-                    .padding(.horizontal, Layout.screenPadding)
-                }
-
-                // Continue button
-                BelongButton(title: "Continue", style: .primary) {
-                    onContinue()
-                }
+            LanguageContinueButton(path: $path)
                 .padding(.horizontal, Layout.screenPadding)
                 .padding(.bottom, Spacing.xxxl)
-                .accessibilityHint("Continue to city and school selection")
-            }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(BelongColor.textPrimary)
+        .background(BelongColor.background)
+        .navigationBarBackButtonHidden(false)
+    }
+}
+
+struct LanguageHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("App language")
+                .font(BelongFont.h1())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            Text("Choose your preferred language for the app.")
+                .font(BelongFont.body())
+                .foregroundStyle(BelongColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct LanguageList: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    private let languages: [(code: String, flag: String, name: String, native: String)] = [
+        ("en", "🇬🇧", "English", "English"),
+        ("zh", "🇨🇳", "Chinese (Simplified)", "\u{7B80}\u{4F53}\u{4E2D}\u{6587}"),
+        ("zh-Hant", "🇹🇼", "Chinese (Traditional)", "\u{7E41}\u{9AD4}\u{4E2D}\u{6587}"),
+        ("ko", "🇰🇷", "Korean", "\u{D55C}\u{AD6D}\u{C5B4}"),
+        ("ja", "🇯🇵", "Japanese", "\u{65E5}\u{672C}\u{8A9E}"),
+        ("vi", "🇻🇳", "Vietnamese", "Ti\u{1EBF}ng Vi\u{1EC7}t"),
+        ("hi", "🇮🇳", "Hindi", "\u{939}\u{93F}\u{928}\u{94D}\u{926}\u{940}"),
+        ("ar", "🇸🇦", "Arabic", "\u{627}\u{644}\u{639}\u{631}\u{628}\u{64A}\u{629}"),
+        ("es", "🇪🇸", "Spanish", "Espa\u{F1}ol"),
+        ("fr", "🇫🇷", "French", "Fran\u{E7}ais"),
+        ("pt", "🇧🇷", "Portuguese", "Portugu\u{EA}s"),
+        ("id", "🇮🇩", "Indonesian", "Bahasa Indonesia")
+    ]
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: Spacing.xs) {
+                ForEach(languages, id: \.code) { lang in
+                    LanguageRow(
+                        flag: lang.flag,
+                        name: lang.name,
+                        nativeName: lang.native,
+                        isSelected: viewModel.selectedLanguage == lang.code,
+                        action: { viewModel.selectedLanguage = lang.code }
+                    )
                 }
-                .accessibilityLabel("Back")
             }
+            .padding(.horizontal, Layout.screenPadding)
+            .padding(.vertical, Spacing.base)
         }
     }
+}
 
-    // MARK: - Language Row
+struct LanguageRow: View {
+    let flag: String
+    let name: String
+    let nativeName: String
+    let isSelected: Bool
+    let action: () -> Void
 
-    private func languageRow(
-        _ language: (code: String, name: String, nativeName: String)
-    ) -> some View {
-        let isSelected = viewModel.selectedLanguage == language.code
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Spacing.md) {
+                Text(flag)
+                    .font(.system(size: 24))
 
-        return Button {
-            viewModel.selectedLanguage = language.code
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(language.name)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
                         .font(BelongFont.bodyMedium())
                         .foregroundStyle(BelongColor.textPrimary)
-
-                    Text(language.nativeName)
+                    Text(nativeName)
                         .font(BelongFont.secondary())
                         .foregroundStyle(BelongColor.textSecondary)
                 }
@@ -83,26 +99,42 @@ struct LanguageScreen: View {
 
                 if isSelected {
                     Image(systemName: "checkmark")
-                        .foregroundStyle(BelongColor.primary)
                         .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(BelongColor.primary)
                 }
             }
-            .frame(height: 60)
             .padding(.horizontal, Spacing.base)
+            .padding(.vertical, Spacing.md)
             .background(isSelected ? BelongColor.surfaceSecondary : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(language.name), \(language.nativeName)")
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityLabel("\(name), \(nativeName)")
+    }
+}
+
+struct LanguageContinueButton: View {
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Continue",
+            style: .primary,
+            isFullWidth: true
+        ) {
+            path.append(.citySchool)
+        }
     }
 }
 
 #Preview {
-    NavigationStack {
-        LanguageScreen(
-            viewModel: OnboardingViewModel(),
-            onContinue: {}
-        )
+    struct LanguagePreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                LanguageScreen(path: $path)
+            }
+            .environment(OnboardingViewModel(deps: DependencyContainer()))
+        }
     }
+    return LanguagePreview()
 }

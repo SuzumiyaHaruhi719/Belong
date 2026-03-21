@@ -1,142 +1,143 @@
 import SwiftUI
 
-// MARK: - Loading / Empty / Error States
-// Every screen needs these three states handled explicitly.
-// UX Decision: Use skeleton rectangles for loading (not spinner-only) —
-// gives spatial context of what's coming. Error states always have a retry action.
-
-// MARK: Loading Skeleton
+// MARK: - SkeletonView
 
 struct SkeletonView: View {
     var width: CGFloat? = nil
     var height: CGFloat = 16
-    var radius: CGFloat = Layout.radiusSm
-
+    var cornerRadius: CGFloat = Layout.radiusSm
     @State private var isAnimating = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: radius)
-            .fill(BelongColor.skeleton)
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(
+                LinearGradient(
+                    colors: [BelongColor.skeleton, BelongColor.skeletonHighlight, BelongColor.skeleton],
+                    startPoint: isAnimating ? .trailing : .leading,
+                    endPoint: isAnimating ? .leading : .trailing
+                )
+            )
             .frame(width: width, height: height)
-            .overlay {
-                RoundedRectangle(cornerRadius: radius)
-                    .fill(BelongColor.skeletonHighlight)
-                    .opacity(isAnimating ? 1 : 0)
-            }
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
                     isAnimating = true
                 }
             }
-            .accessibilityLabel("Loading")
     }
 }
+
+// MARK: - SkeletonCard
 
 struct SkeletonCard: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            SkeletonView(height: 200, radius: Layout.radiusXl)
-            SkeletonView(width: 200, height: 20)
-            SkeletonView(width: 140, height: 16)
-            SkeletonView(width: 100, height: 14)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            SkeletonView(height: Layout.cardImageHeight, cornerRadius: 0)
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                SkeletonView(width: 200, height: 20)
+                SkeletonView(width: 140, height: 14)
+                SkeletonView(height: 14)
+                HStack {
+                    SkeletonView(width: 80, height: 14)
+                    Spacer()
+                    SkeletonView(width: 60, height: 14)
+                }
+            }
+            .padding(.horizontal, Spacing.base)
+            .padding(.bottom, Spacing.base)
         }
-        .padding(Spacing.base)
         .background(BelongColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusXl))
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
     }
 }
 
-// MARK: Empty State
+// MARK: - EmptyStateView
 
 struct EmptyStateView: View {
-    let systemImage: String
+    let icon: String
     let title: String
     let message: String
-    var actionTitle: String? = nil
-    var action: (() -> Void)? = nil
+    var ctaTitle: String? = nil
+    var onCTA: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: Spacing.base) {
-            Image(systemName: systemImage)
+            Image(systemName: icon)
                 .font(.system(size: 48))
                 .foregroundStyle(BelongColor.textTertiary)
-
             Text(title)
-                .font(BelongFont.h2())
+                .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
-
+                .multilineTextAlignment(.center)
             Text(message)
                 .font(BelongFont.secondary())
                 .foregroundStyle(BelongColor.textSecondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-
-            if let actionTitle, let action {
-                BelongButton(title: actionTitle, style: .secondary, isFullWidth: false, action: action)
+            if let ctaTitle = ctaTitle, let onCTA = onCTA {
+                BelongButton(title: ctaTitle, style: .primary, action: onCTA)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(Layout.screenPadding)
-        .accessibilityElement(children: .combine)
+        .padding(Spacing.xxl)
     }
 }
 
-// MARK: Error State
+// MARK: - ErrorStateView
 
 struct ErrorStateView: View {
     let message: String
-    var retryAction: (() -> Void)? = nil
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: Spacing.base) {
-            Image(systemName: "wifi.slash")
-                .font(.system(size: 40))
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
                 .foregroundStyle(BelongColor.error)
-
-            Text("Something went wrong")
-                .font(BelongFont.h2())
-                .foregroundStyle(BelongColor.textPrimary)
-
             Text(message)
                 .font(BelongFont.secondary())
                 .foregroundStyle(BelongColor.textSecondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-
-            if let retryAction {
-                BelongButton(title: "Try again", style: .secondary, systemImage: "arrow.clockwise", isFullWidth: false, action: retryAction)
+            if let onRetry = onRetry {
+                BelongButton(title: "Retry", style: .secondary, action: onRetry)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(Layout.screenPadding)
-        .accessibilityElement(children: .combine)
+        .padding(Spacing.xxl)
     }
 }
 
-// MARK: Inline Error Banner
+// MARK: - InlineErrorBanner
 
 struct InlineErrorBanner: View {
     let message: String
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(BelongColor.error)
             Text(message)
                 .font(BelongFont.secondary())
                 .foregroundStyle(BelongColor.error)
             Spacer()
+            if let onDismiss = onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BelongColor.error)
+                        .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+                }
+                .accessibilityLabel("Dismiss error")
+            }
         }
         .padding(Spacing.md)
         .background(BelongColor.errorLight)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
     }
 }
 
-// MARK: Success Banner
+// MARK: - SuccessBanner
 
 struct SuccessBanner: View {
     let message: String
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
@@ -144,24 +145,38 @@ struct SuccessBanner: View {
                 .foregroundStyle(BelongColor.success)
             Text(message)
                 .font(BelongFont.secondary())
-                .foregroundStyle(BelongColor.textPrimary)
+                .foregroundStyle(BelongColor.success)
             Spacer()
+            if let onDismiss = onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BelongColor.success)
+                        .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+                }
+                .accessibilityLabel("Dismiss success message")
+            }
         }
         .padding(Spacing.md)
         .background(BelongColor.successLight)
-        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
     }
 }
 
-#Preview("State Views") {
+#Preview {
     ScrollView {
-        VStack(spacing: 32) {
+        VStack(spacing: Spacing.lg) {
             SkeletonCard()
-            EmptyStateView(systemImage: "calendar.badge.plus", title: "No events yet",
-                          message: "Join a gathering to see it here", actionTitle: "Browse gatherings") {}
-            ErrorStateView(message: "Could not load gatherings. Check your connection.") {}
-            InlineErrorBanner(message: "That email is already registered")
-            SuccessBanner(message: "Your gathering has been published!")
+            EmptyStateView(
+                icon: "calendar",
+                title: "No gatherings yet",
+                message: "Create or join a gathering to connect with your community.",
+                ctaTitle: "Create Gathering",
+                onCTA: {}
+            )
+            ErrorStateView(message: "Something went wrong. Please try again.", onRetry: {})
+            InlineErrorBanner(message: "Failed to load data", onDismiss: {})
+            SuccessBanner(message: "Profile updated successfully", onDismiss: {})
         }
         .padding()
     }

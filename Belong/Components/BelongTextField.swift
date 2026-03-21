@@ -1,103 +1,96 @@
 import SwiftUI
 
-// MARK: - BelongTextField
-// Spec: 56pt height, 12pt radius, border changes on focus/error.
-// UX Decision: Error messages appear inline below the field (never as alerts)
-// to keep context visible. Character counter shown when limit is set.
-
 struct BelongTextField: View {
     let label: String
     @Binding var text: String
     var placeholder: String = ""
-    var errorMessage: String? = nil
     var helperText: String? = nil
+    var errorMessage: String? = nil
     var characterLimit: Int? = nil
-    var keyboardType: UIKeyboardType = .default
-    var textContentType: UITextContentType? = nil
-    var isSecure: Bool = false
-    var isDisabled: Bool = false
-    var autocapitalization: TextInputAutocapitalization = .sentences
     var leadingIcon: String? = nil
-
-    @FocusState private var isFocused: Bool
-    @State private var showSecureText = false
-
-    private var hasError: Bool { errorMessage != nil }
+    var isSecure: Bool = false
+    @State private var isFocused: Bool = false
+    @State private var showSecureText: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            // Label
-            Text(label)
-                .font(BelongFont.secondaryMedium())
-                .foregroundStyle(BelongColor.textPrimary)
+            BelongTextFieldLabel(label: label)
+            BelongTextFieldInputRow(
+                text: $text,
+                placeholder: placeholder,
+                leadingIcon: leadingIcon,
+                isSecure: isSecure,
+                showSecureText: showSecureText,
+                isFocused: isFocused,
+                hasError: errorMessage != nil,
+                onFocusChange: { isFocused = $0 },
+                onToggleSecure: { showSecureText.toggle() }
+            )
+            BelongTextFieldFooter(
+                helperText: helperText,
+                errorMessage: errorMessage,
+                characterLimit: characterLimit,
+                currentCount: text.count
+            )
+        }
+    }
+}
 
-            // Input field
-            HStack(spacing: Spacing.sm) {
-                if let leadingIcon {
-                    Image(systemName: leadingIcon)
-                        .foregroundStyle(BelongColor.textTertiary)
-                        .frame(width: 20)
-                }
+struct BelongTextFieldLabel: View {
+    let label: String
 
-                Group {
-                    if isSecure && !showSecureText {
-                        SecureField(placeholder, text: $text)
-                    } else {
-                        TextField(placeholder, text: $text)
-                            .keyboardType(keyboardType)
-                            .textContentType(textContentType)
-                            .textInputAutocapitalization(autocapitalization)
-                    }
-                }
-                .font(BelongFont.body())
-                .focused($isFocused)
+    var body: some View {
+        Text(label)
+            .font(BelongFont.secondaryMedium())
+            .foregroundStyle(BelongColor.textSecondary)
+    }
+}
 
-                if isSecure {
-                    Button {
-                        showSecureText.toggle()
-                    } label: {
-                        Image(systemName: showSecureText ? "eye.slash" : "eye")
-                            .foregroundStyle(BelongColor.textTertiary)
-                            .frame(width: Layout.touchTargetMin, height: Layout.touchTargetMin)
-                    }
-                    .accessibilityLabel(showSecureText ? "Hide password" : "Show password")
+struct BelongTextFieldInputRow: View {
+    @Binding var text: String
+    let placeholder: String
+    let leadingIcon: String?
+    let isSecure: Bool
+    let showSecureText: Bool
+    let isFocused: Bool
+    let hasError: Bool
+    let onFocusChange: (Bool) -> Void
+    let onToggleSecure: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            if let icon = leadingIcon {
+                Image(systemName: icon)
+                    .foregroundStyle(BelongColor.textTertiary)
+                    .frame(width: 20)
+            }
+            Group {
+                if isSecure && !showSecureText {
+                    SecureField(placeholder, text: $text)
+                } else {
+                    TextField(placeholder, text: $text, onEditingChanged: onFocusChange)
                 }
             }
-            .padding(.horizontal, Spacing.base)
-            .frame(height: Layout.inputHeight)
-            .background(isDisabled ? BelongColor.disabled.opacity(0.3) : BelongColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-            .overlay {
-                RoundedRectangle(cornerRadius: Layout.radiusMd)
-                    .strokeBorder(borderColor, lineWidth: hasError ? 1.5 : 1)
-            }
-            .disabled(isDisabled)
+            .font(BelongFont.body())
+            .foregroundStyle(BelongColor.textPrimary)
 
-            // Helper / error / character count row
-            HStack {
-                if let errorMessage {
-                    Label(errorMessage, systemImage: "exclamationmark.circle.fill")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.error)
-                } else if let helperText {
-                    Text(helperText)
-                        .font(BelongFont.caption())
+            if isSecure {
+                Button(action: onToggleSecure) {
+                    Image(systemName: showSecureText ? "eye.slash" : "eye")
                         .foregroundStyle(BelongColor.textTertiary)
                 }
-
-                Spacer()
-
-                if let characterLimit {
-                    Text("\(text.count) / \(characterLimit)")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(text.count > characterLimit ? BelongColor.error : BelongColor.textTertiary)
-                }
+                .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+                .accessibilityLabel(showSecureText ? "Hide password" : "Show password")
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
-        .accessibilityValue(text.isEmpty ? placeholder : text)
-        .accessibilityHint(errorMessage ?? helperText ?? "")
+        .padding(.horizontal, Spacing.md)
+        .frame(height: Layout.inputHeight)
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(borderColor, lineWidth: hasError ? 1.5 : 1)
+        )
     }
 
     private var borderColor: Color {
@@ -107,14 +100,39 @@ struct BelongTextField: View {
     }
 }
 
-#Preview("Text Fields") {
-    VStack(spacing: 24) {
-        BelongTextField(label: "Email", text: .constant(""), placeholder: "you@example.com",
-                        keyboardType: .emailAddress, leadingIcon: "envelope")
-        BelongTextField(label: "Username", text: .constant("mai_nguyen"),
-                        characterLimit: 20, autocapitalization: .never)
-        BelongTextField(label: "Password", text: .constant("abc"),
-                        errorMessage: "At least 8 characters", isSecure: true)
+struct BelongTextFieldFooter: View {
+    let helperText: String?
+    let errorMessage: String?
+    let characterLimit: Int?
+    let currentCount: Int
+
+    var body: some View {
+        HStack {
+            if let error = errorMessage {
+                Text(error)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.error)
+            } else if let helper = helperText {
+                Text(helper)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+            Spacer()
+            if let limit = characterLimit {
+                Text("\(currentCount)/\(limit)")
+                    .font(BelongFont.caption())
+                    .foregroundStyle(currentCount > limit ? BelongColor.error : BelongColor.textTertiary)
+            }
+        }
+    }
+}
+
+#Preview {
+    VStack(spacing: Spacing.lg) {
+        BelongTextField(label: "Email", text: .constant(""), placeholder: "you@example.com", leadingIcon: "envelope")
+        BelongTextField(label: "Password", text: .constant("secret"), isSecure: true)
+        BelongTextField(label: "Bio", text: .constant("Hello world"), helperText: "Tell us about yourself", characterLimit: 150)
+        BelongTextField(label: "Username", text: .constant("bad!"), errorMessage: "Invalid characters")
     }
     .padding()
     .background(BelongColor.background)

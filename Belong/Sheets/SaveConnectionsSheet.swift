@@ -1,126 +1,199 @@
 import SwiftUI
 
-// MARK: - BS03: Save Connections Sheet
-// Spec: Attendee list with independent "Connect" buttons per row.
-// Done button shows count of connections made.
-//
-// UX Decision: Each "Connect" is independent (not a bulk select-all)
-// to respect that connecting is a personal choice. The button label
-// changes to "Connected ✓" immediately — no waiting for server.
-// This mirrors how adding friends should feel: light, immediate, reversible.
-
 struct SaveConnectionsSheet: View {
-    let gathering: Gathering
-    @State var connections: [Connection]
-    var onDone: (() -> Void)? = nil
+    let attendees: [GatheringMember]
+    @Environment(\.dismiss) private var dismiss
+    @State private var connectedIds: Set<String> = []
 
-    private var connectedCount: Int {
-        connections.filter(\.isConnected).count
-    }
+    private var connectedCount: Int { connectedIds.count }
 
     var body: some View {
-        VStack(spacing: Spacing.base) {
-            // Drag handle
-            Capsule()
-                .fill(BelongColor.border)
-                .frame(width: 36, height: 5)
-                .padding(.top, Spacing.sm)
+        VStack(spacing: 0) {
+            SheetDragHandle()
+                .padding(.top, Spacing.md)
 
-            // Header
-            VStack(spacing: Spacing.xs) {
-                Text("Stay connected")
-                    .font(BelongFont.h1())
-                    .foregroundStyle(BelongColor.textPrimary)
+            SaveConnectionsHeader()
+                .padding(.top, Spacing.lg)
 
-                Text("Save the people you'd like to see again")
-                    .font(BelongFont.secondary())
-                    .foregroundStyle(BelongColor.textSecondary)
-            }
+            SaveConnectionsList(
+                attendees: attendees,
+                connectedIds: $connectedIds
+            )
 
-            // Attendee list
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array($connections.enumerated()), id: \.element.id) { index, $connection in
-                        HStack(spacing: Spacing.md) {
-                            AvatarView(emoji: connection.avatarEmoji, size: 40)
+            SaveConnectionsFooter(
+                connectedCount: connectedCount,
+                dismiss: dismiss
+            )
+        }
+        .background(BelongColor.background)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.hidden)
+    }
+}
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(connection.name)
-                                    .font(BelongFont.bodyMedium())
-                                    .foregroundStyle(BelongColor.textPrimary)
+// MARK: - Header
 
-                                if connection.mutualEvents > 0 {
-                                    Text("\(connection.mutualEvents) mutual event\(connection.mutualEvents == 1 ? "" : "s")")
-                                        .font(BelongFont.caption())
-                                        .foregroundStyle(BelongColor.textTertiary)
-                                }
-                            }
+private struct SaveConnectionsHeader: View {
+    var body: some View {
+        VStack(spacing: Spacing.xs) {
+            Text("Save your connections")
+                .font(BelongFont.h2())
+                .foregroundStyle(BelongColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
-                            Spacer()
+            Text("Stay in touch with people you met")
+                .font(BelongFont.secondary())
+                .foregroundStyle(BelongColor.textSecondary)
+        }
+        .padding(.horizontal, Layout.screenPadding)
+        .padding(.bottom, Spacing.base)
+    }
+}
 
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    connections[index].isConnected.toggle()
-                                }
-                            } label: {
-                                HStack(spacing: Spacing.xs) {
-                                    if connection.isConnected {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .semibold))
-                                    }
-                                    Text(connection.isConnected ? "Connected" : "Connect")
-                                        .font(BelongFont.secondaryMedium())
-                                }
-                                .foregroundStyle(connection.isConnected ? BelongColor.success : BelongColor.primary)
-                                .padding(.horizontal, Spacing.md)
-                                .padding(.vertical, Spacing.sm)
-                                .background(connection.isConnected ? BelongColor.successLight : BelongColor.surfaceSecondary)
-                                .clipShape(Capsule())
-                                .overlay {
-                                    Capsule()
-                                        .strokeBorder(connection.isConnected ? BelongColor.success.opacity(0.3) : BelongColor.primary.opacity(0.3), lineWidth: 1)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(connection.isConnected ? "Connected with \(connection.name)" : "Connect with \(connection.name)")
-                        }
-                        .padding(.vertical, Spacing.md)
-                        .padding(.horizontal, Spacing.xs)
+// MARK: - Attendee List
 
-                        if index < connections.count - 1 {
-                            Divider()
-                                .foregroundStyle(BelongColor.divider)
-                        }
+private struct SaveConnectionsList: View {
+    let attendees: [GatheringMember]
+    @Binding var connectedIds: Set<String>
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(attendees) { member in
+                    SaveConnectionRow(
+                        member: member,
+                        isConnected: connectedIds.contains(member.userId)
+                    ) {
+                        toggleConnection(member.userId)
                     }
-                }
-            }
 
-            // Bottom actions
-            VStack(spacing: Spacing.sm) {
-                BelongButton(
-                    title: connectedCount > 0 ? "Done (\(connectedCount) connected)" : "Done",
-                    style: .primary
-                ) {
-                    onDone?()
-                }
-
-                if connectedCount == 0 {
-                    BelongButton(title: "Skip", style: .tertiary) {
-                        onDone?()
+                    if member.id != attendees.last?.id {
+                        Divider()
+                            .padding(.leading, Layout.screenPadding + 56)
                     }
                 }
             }
         }
-        .padding(.horizontal, Layout.screenPadding)
-        .padding(.bottom, Spacing.xl)
-        .background(BelongColor.background)
+        .frame(maxHeight: .infinity)
+    }
+
+    private func toggleConnection(_ userId: String) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if connectedIds.contains(userId) {
+                connectedIds.remove(userId)
+            } else {
+                connectedIds.insert(userId)
+            }
+        }
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
     }
 }
 
+private struct SaveConnectionRow: View {
+    let member: GatheringMember
+    let isConnected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            AvatarView(emoji: member.userAvatarEmoji, size: .medium)
+                .frame(width: Layout.touchTargetMin, height: Layout.touchTargetMin)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.userName)
+                    .font(BelongFont.bodyMedium())
+                    .foregroundStyle(BelongColor.textPrimary)
+                    .lineLimit(1)
+
+                if !member.sharedTags.isEmpty {
+                    Text(member.sharedTags.prefix(3).joined(separator: " · "))
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            SaveConnectionButton(isConnected: isConnected, onTap: onTap)
+        }
+        .frame(height: 56)
+        .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+private struct SaveConnectionButton: View {
+    let isConnected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: Spacing.xs) {
+                if isConnected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                Text(isConnected ? "Connected" : "Connect")
+                    .font(BelongFont.secondaryMedium())
+            }
+            .foregroundStyle(isConnected ? BelongColor.success : BelongColor.primary)
+            .padding(.horizontal, Spacing.md)
+            .frame(height: 34)
+            .background(
+                isConnected ? BelongColor.successLight : BelongColor.surfaceSecondary
+            )
+            .clipShape(Capsule())
+        }
+        .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+        .accessibilityLabel(isConnected ? "Connected to \(isConnected)" : "Connect")
+        .accessibilityHint(isConnected ? "Tap to disconnect" : "Tap to connect")
+    }
+}
+
+// MARK: - Footer
+
+private struct SaveConnectionsFooter: View {
+    let connectedCount: Int
+    let dismiss: DismissAction
+
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            BelongButton(
+                title: connectedCount > 0 ? "Done (\(connectedCount) connected)" : "Done",
+                style: .primary,
+                isFullWidth: true
+            ) {
+                dismiss()
+            }
+            .accessibilityLabel("Done, \(connectedCount) connections saved")
+
+            Button(action: { dismiss() }) {
+                Text("Skip")
+                    .font(BelongFont.secondary())
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+            .accessibilityLabel("Skip saving connections")
+        }
+        .padding(.horizontal, Layout.screenPadding)
+        .padding(.vertical, Spacing.base)
+    }
+}
+
+// MARK: - Preview
+
 #Preview {
-    SaveConnectionsSheet(
-        gathering: SampleData.topPick,
-        connections: SampleData.connections
-    )
-    .presentationDetents([.large])
+    Color.clear
+        .sheet(isPresented: .constant(true)) {
+            SaveConnectionsSheet(
+                attendees: [
+                    GatheringMember(gatheringId: "g1", userId: "u1", status: .joined, joinedAt: Date(), userName: "Min-Jun Park", userAvatarEmoji: "🧑‍🍳", sharedTags: ["Korean", "Food"]),
+                    GatheringMember(gatheringId: "g1", userId: "u2", status: .joined, joinedAt: Date(), userName: "Sakura Tanaka", userAvatarEmoji: "🎎", sharedTags: ["Japanese", "Art"]),
+                    GatheringMember(gatheringId: "g1", userId: "u3", status: .joined, joinedAt: Date(), userName: "Wei Lin", userAvatarEmoji: "🌸", sharedTags: ["Chinese"]),
+                    GatheringMember(gatheringId: "g1", userId: "u4", status: .joined, joinedAt: Date(), userName: "Priya Sharma", userAvatarEmoji: "🪷", sharedTags: ["Indian", "Dance"]),
+                    GatheringMember(gatheringId: "g1", userId: "u5", status: .joined, joinedAt: Date(), userName: "Ahmed Hassan", userAvatarEmoji: "🕌", sharedTags: ["Arabic", "Music"]),
+                    GatheringMember(gatheringId: "g1", userId: "u6", status: .joined, joinedAt: Date(), userName: "Sofia Rodriguez", userAvatarEmoji: "💃", sharedTags: ["Latin"]),
+                ]
+            )
+        }
 }

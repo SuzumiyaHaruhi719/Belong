@@ -1,115 +1,158 @@
 import SwiftUI
 
-// MARK: - BS02: Post-Event Feedback Sheet
-// Spec: 5 emojis (64×64pt) with labels. Auto-transitions to BS03
-// (Save Connections) after 800ms delay.
-//
-// UX Decision: Emoji feedback is low-stakes and fast. One tap = done.
-// No star ratings, no text forms — just an emotional pulse check.
-// The auto-transition to connections feels like a natural continuation
-// rather than a separate task.
-
 struct PostEventFeedbackSheet: View {
-    let gathering: Gathering
-    var onComplete: ((Int) -> Void)? = nil  // feedback value
-    var onShowConnections: (() -> Void)? = nil
+    let gatheringTitle: String
+    let hostName: String
+    var onSubmit: ((FeedbackEmoji) -> Void)? = nil
 
-    @State private var selectedEmoji: FeedbackEmoji?
-    @State private var hasSubmitted = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedEmoji: FeedbackEmoji? = nil
+    @State private var showThanks = false
 
     var body: some View {
-        VStack(spacing: Spacing.xl) {
-            // Drag handle
-            Capsule()
-                .fill(BelongColor.border)
-                .frame(width: 36, height: 5)
-                .padding(.top, Spacing.sm)
+        VStack(spacing: Spacing.lg) {
+            SheetDragHandle()
 
-            // Prompt
             Text("How was it?")
-                .font(BelongFont.h1())
+                .font(BelongFont.h2())
                 .foregroundStyle(BelongColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
-            // Event reference
-            VStack(spacing: Spacing.xs) {
-                Text(gathering.title)
-                    .font(BelongFont.bodyMedium())
-                    .foregroundStyle(BelongColor.textPrimary)
-                Text("Hosted by \(gathering.hostName)")
+            PostFeedbackEventInfo(title: gatheringTitle, hostName: hostName)
+
+            PostFeedbackEmojiRow(
+                selectedEmoji: $selectedEmoji,
+                showThanks: $showThanks,
+                onSubmit: onSubmit,
+                dismiss: dismiss
+            )
+
+            Spacer()
+
+            if showThanks {
+                Text("Thanks!")
+                    .font(BelongFont.h3())
+                    .foregroundStyle(BelongColor.success)
+                    .transition(.opacity.combined(with: .scale))
+            }
+
+            Button(action: { dismiss() }) {
+                Text("Skip")
                     .font(BelongFont.secondary())
-                    .foregroundStyle(BelongColor.textSecondary)
+                    .foregroundStyle(BelongColor.textTertiary)
             }
-
-            Spacer()
-
-            if hasSubmitted {
-                // Thank you state
-                VStack(spacing: Spacing.base) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(BelongColor.primary)
-
-                    Text("Thanks for sharing!")
-                        .font(BelongFont.h2())
-                        .foregroundStyle(BelongColor.textPrimary)
-
-                    Text("Your feedback helps us improve recommendations.")
-                        .font(BelongFont.secondary())
-                        .foregroundStyle(BelongColor.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-            } else {
-                // Emoji row
-                HStack(spacing: Spacing.lg) {
-                    ForEach(FeedbackEmoji.options) { option in
-                        Button {
-                            selectFeedback(option)
-                        } label: {
-                            VStack(spacing: Spacing.xs) {
-                                Text(option.emoji)
-                                    .font(.system(size: 44))
-                                    .scaleEffect(selectedEmoji?.id == option.id ? 1.2 : 1)
-
-                                Text(option.label)
-                                    .font(BelongFont.caption())
-                                    .foregroundStyle(BelongColor.textSecondary)
-                            }
-                            .frame(width: 64)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(option.label)
-                        .accessibilityAddTraits(.isButton)
-                    }
-                }
-            }
-
-            Spacer()
+            .accessibilityLabel("Skip feedback")
+            .padding(.bottom, Spacing.xl)
         }
         .padding(.horizontal, Layout.screenPadding)
+        .padding(.top, Spacing.md)
         .background(BelongColor.background)
-        .animation(.easeInOut(duration: 0.3), value: hasSubmitted)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.hidden)
     }
+}
 
-    private func selectFeedback(_ emoji: FeedbackEmoji) {
-        selectedEmoji = emoji
+// MARK: - Event Info
 
-        // Brief haptic + visual confirmation, then transition
-        Task {
-            try? await Task.sleep(for: .milliseconds(800))
-            withAnimation {
-                hasSubmitted = true
-            }
-            onComplete?(emoji.value)
+private struct PostFeedbackEventInfo: View {
+    let title: String
+    let hostName: String
 
-            // Auto-advance to connections sheet after a moment
-            try? await Task.sleep(for: .seconds(1.5))
-            onShowConnections?()
+    var body: some View {
+        VStack(spacing: Spacing.xs) {
+            Text(title)
+                .font(BelongFont.bodyMedium())
+                .foregroundStyle(BelongColor.textPrimary)
+            Text("Hosted by \(hostName)")
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.textSecondary)
         }
     }
 }
 
+// MARK: - Emoji Row
+
+private struct PostFeedbackEmojiRow: View {
+    @Binding var selectedEmoji: FeedbackEmoji?
+    @Binding var showThanks: Bool
+    var onSubmit: ((FeedbackEmoji) -> Void)?
+    let dismiss: DismissAction
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            ForEach(FeedbackEmoji.options) { option in
+                PostFeedbackEmojiButton(
+                    option: option,
+                    isSelected: selectedEmoji?.id == option.id,
+                    isDisabled: selectedEmoji != nil && selectedEmoji?.id != option.id
+                ) {
+                    selectEmoji(option)
+                }
+            }
+        }
+        .padding(.vertical, Spacing.md)
+    }
+
+    private func selectEmoji(_ option: FeedbackEmoji) {
+        guard selectedEmoji == nil else { return }
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            selectedEmoji = option
+        }
+
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        onSubmit?(option)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeIn(duration: 0.3)) {
+                showThanks = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            dismiss()
+        }
+    }
+}
+
+private struct PostFeedbackEmojiButton: View {
+    let option: FeedbackEmoji
+    let isSelected: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: Spacing.xs) {
+                Text(option.emoji)
+                    .font(.system(size: 64))
+                    .scaleEffect(isSelected ? 1.2 : 1.0)
+
+                Text(option.label)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(
+                        isSelected ? BelongColor.primary : BelongColor.textSecondary
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .opacity(isDisabled ? 0.4 : 1.0)
+        .disabled(isDisabled)
+        .accessibilityLabel("\(option.label), rate \(option.score) out of 5")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+// MARK: - Preview
+
 #Preview {
-    PostEventFeedbackSheet(gathering: SampleData.pastGatherings.first ?? SampleData.topPick)
-        .presentationDetents([.medium])
+    Color.clear
+        .sheet(isPresented: .constant(true)) {
+            PostEventFeedbackSheet(
+                gatheringTitle: "Korean BBQ Night",
+                hostName: "Min-Jun Park"
+            )
+        }
 }

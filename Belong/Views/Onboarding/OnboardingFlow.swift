@@ -1,102 +1,69 @@
 import SwiftUI
 
-// MARK: - OnboardingFlow
-// NavigationStack-based coordinator for all onboarding steps (S01–S11).
-// Creates a single OnboardingViewModel instance and passes it to child views.
-// Uses type-safe navigationDestination(for: OnboardingStep.self).
-
 struct OnboardingFlow: View {
     @Environment(AppState.self) private var appState
-    @State private var viewModel = OnboardingViewModel()
-    @State private var path: [OnboardingStep] = []
+    @Environment(DependencyContainer.self) private var deps
+    @State private var path: [AppState.OnboardingStep] = []
+    @State private var viewModel: OnboardingViewModel?
+    @State private var showLogin = false
 
     var body: some View {
         NavigationStack(path: $path) {
-            WelcomeScreen(
-                onGetStarted: { advance(to: .email) },
-                onLogin: { /* TODO: Login flow */ }
-            )
-            .navigationDestination(for: OnboardingStep.self) { step in
-                destinationView(for: step)
+            WelcomeScreen(path: $path, showLogin: $showLogin)
+                .navigationDestination(for: AppState.OnboardingStep.self) { step in
+                    OnboardingDestination(step: step, path: $path)
+                }
+        }
+        .sheet(isPresented: $showLogin) {
+            NavigationStack {
+                LoginScreen()
+            }
+            .environment(appState)
+            .environment(viewModel ?? OnboardingViewModel(deps: deps))
+        }
+        .task {
+            if viewModel == nil {
+                viewModel = OnboardingViewModel(deps: deps)
             }
         }
+        .environment(viewModel ?? OnboardingViewModel(deps: deps))
     }
+}
 
-    // MARK: - Routing
+struct OnboardingDestination: View {
+    let step: AppState.OnboardingStep
+    @Binding var path: [AppState.OnboardingStep]
 
-    @ViewBuilder
-    private func destinationView(for step: OnboardingStep) -> some View {
+    var body: some View {
         switch step {
         case .welcome:
-            WelcomeScreen(
-                onGetStarted: { advance(to: .email) },
-                onLogin: { /* TODO: Login flow */ }
-            )
-
+            WelcomeScreen(path: $path, showLogin: .constant(false))
         case .email:
-            EmailEntryScreen(viewModel: viewModel) {
-                advance(to: .otp)
-            }
-
+            EmailEntryScreen(path: $path)
         case .otp:
-            OTPVerificationScreen(viewModel: viewModel) {
-                advance(to: .password)
-            }
-
+            OTPVerificationScreen(path: $path)
         case .password:
-            PasswordSetupScreen(viewModel: viewModel) {
-                advance(to: .username)
-            }
-
+            PasswordSetupScreen(path: $path)
         case .username:
-            UsernameScreen(viewModel: viewModel) {
-                advance(to: .emailConfirmed)
-            }
-
+            UsernameScreen(path: $path)
         case .emailConfirmed:
-            EmailConfirmedScreen {
-                advance(to: .avatar)
-            }
-
+            EmailConfirmedScreen(path: $path)
         case .avatar:
-            AvatarSetupScreen(viewModel: viewModel) {
-                advance(to: .language)
-            }
-
+            AvatarSetupScreen(path: $path)
         case .language:
-            LanguageScreen(viewModel: viewModel) {
-                advance(to: .citySchool)
-            }
-
+            LanguageScreen(path: $path)
         case .citySchool:
-            CitySchoolScreen(viewModel: viewModel) {
-                advance(to: .culturalTags)
-            }
-
+            CitySchoolScreen(path: $path)
         case .culturalTags:
-            CulturalTagsScreen(viewModel: viewModel) {
-                advance(to: .complete)
-            }
-
+            CulturalTagsScreen(path: $path)
         case .complete:
-            OnboardingCompleteScreen(viewModel: viewModel) {
-                completeOnboarding()
-            }
+            OnboardingCompleteScreen()
         }
-    }
-
-    // MARK: - Navigation Helpers
-
-    private func advance(to step: OnboardingStep) {
-        path.append(step)
-    }
-
-    private func completeOnboarding() {
-        appState.completeOnboarding(user: viewModel.buildUser())
     }
 }
 
 #Preview {
     OnboardingFlow()
         .environment(AppState())
+        .environment(DependencyContainer())
 }

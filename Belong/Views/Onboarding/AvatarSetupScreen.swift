@@ -1,99 +1,139 @@
 import SwiftUI
 
-// MARK: - AvatarSetupScreen (S07)
-// Avatar emoji selection with grid, photo upload option, and display name.
-
 struct AvatarSetupScreen: View {
-    let viewModel: OnboardingViewModel
-    let onContinue: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: Spacing.xl) {
-                    // Header
-                    Text("How should we know you?")
-                        .font(BelongFont.h1())
-                        .foregroundStyle(BelongColor.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.top, Spacing.sm)
-
-                    // Avatar preview
-                    AvatarView(emoji: viewModel.selectedAvatar, size: 80)
-                        .accessibilityLabel("Selected avatar: \(viewModel.selectedAvatar)")
-
-                    // Avatar grid
-                    AvatarGrid(
-                        avatars: SampleData.defaultAvatars,
-                        selected: Bindable(viewModel).selectedAvatar
-                    )
-
-                    // Upload photo button
-                    BelongButton(
-                        title: "Upload photo",
-                        style: .tertiary,
-                        systemImage: "camera"
-                    ) {
-                        // TODO: Photo picker integration
-                    }
-                    .accessibilityHint("Choose a photo from your library")
-
-                    // Display name
-                    BelongTextField(
-                        label: "Display name",
-                        text: Bindable(viewModel).displayName,
-                        placeholder: "How friends will see you",
-                        errorMessage: viewModel.displayNameError,
-                        characterLimit: 30
-                    )
-
-                    Spacer(minLength: Spacing.xl)
-
-                    // Continue
-                    BelongButton(
-                        title: "Continue",
-                        style: .primary,
-                        isDisabled: !viewModel.isDisplayNameValid
-                    ) {
-                        onContinue()
-                    }
-                    .accessibilityHint("Continue to language selection")
-                }
-                .padding(.horizontal, Layout.screenPadding)
-                .padding(.bottom, Spacing.xxxl)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                AvatarSetupHeader()
+                AvatarPreviewSection()
+                AvatarGrid()
+                AvatarDisplayNameField()
+                AvatarContinueButton(path: $path)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, Layout.screenPadding)
+            .padding(.top, Spacing.xl)
+            .padding(.bottom, Spacing.xxxl)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(BelongColor.textPrimary)
-                }
-                .accessibilityLabel("Back")
+        .background(BelongColor.background)
+        .navigationBarBackButtonHidden(false)
+    }
+}
+
+struct AvatarSetupHeader: View {
+    var body: some View {
+        Text("Choose your avatar")
+            .font(BelongFont.h1())
+            .foregroundStyle(BelongColor.textPrimary)
+    }
+}
+
+struct AvatarPreviewSection: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        HStack {
+            Spacer()
+            AvatarView(
+                emoji: viewModel.selectedAvatar.isEmpty ? "?" : viewModel.selectedAvatar,
+                size: .xlarge
+            )
+            Spacer()
+        }
+    }
+}
+
+struct AvatarGrid: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    private let avatars = [
+        "🌿", "⭐", "🔥", "🌙", "🍊",
+        "🌺", "💜", "🦋", "🌊", "✨"
+    ]
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 60, maximum: 80), spacing: Spacing.md)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: Spacing.md) {
+            ForEach(avatars, id: \.self) { emoji in
+                AvatarGridItem(
+                    emoji: emoji,
+                    isSelected: viewModel.selectedAvatar == emoji,
+                    action: { viewModel.selectedAvatar = emoji }
+                )
             }
         }
     }
 }
 
-#Preview {
-    NavigationStack {
-        AvatarSetupScreen(
-            viewModel: {
-                let vm = OnboardingViewModel()
-                vm.displayName = "Mai"
-                return vm
-            }(),
-            onContinue: {}
-        )
+struct AvatarGridItem: View {
+    let emoji: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(isSelected ? BelongColor.surfaceSecondary : BelongColor.surface)
+                    .overlay(
+                        Circle()
+                            .stroke(isSelected ? BelongColor.primary : BelongColor.border, lineWidth: isSelected ? 2 : 1)
+                    )
+                Text(emoji)
+                    .font(.system(size: 28))
+            }
+            .frame(width: 60, height: 60)
+        }
+        .accessibilityLabel("Avatar \(emoji)")
     }
+}
+
+struct AvatarDisplayNameField: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+        BelongTextField(
+            label: "Display name",
+            text: $vm.displayName,
+            placeholder: "How should we call you?",
+            characterLimit: 50
+        )
+        .textContentType(.name)
+        .accessibilityLabel("Display name")
+    }
+}
+
+struct AvatarContinueButton: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Continue",
+            style: .primary,
+            isFullWidth: true,
+            isDisabled: viewModel.displayName.trimmingCharacters(in: .whitespaces).isEmpty
+        ) {
+            path.append(.language)
+        }
+    }
+}
+
+#Preview {
+    struct AvatarPreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                AvatarSetupScreen(path: $path)
+            }
+            .environment(OnboardingViewModel(deps: DependencyContainer()))
+        }
+    }
+    return AvatarPreview()
 }

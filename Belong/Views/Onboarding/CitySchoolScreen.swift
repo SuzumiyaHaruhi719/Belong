@@ -1,226 +1,248 @@
 import SwiftUI
 
-// MARK: - CitySchoolScreen (S09)
-// City and school selection with search filtering.
-// School picker appears after city is selected.
-
 struct CitySchoolScreen: View {
-    let viewModel: OnboardingViewModel
-    let onContinue: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    /// Filtered cities based on search text
-    private var filteredCities: [String] {
-        if viewModel.citySearchText.isEmpty {
-            return SampleData.cities
-        }
-        return SampleData.cities.filter {
-            $0.localizedCaseInsensitiveContains(viewModel.citySearchText)
-        }
-    }
-
-    /// Schools for the selected city, filtered by search text
-    private var filteredSchools: [String] {
-        guard !viewModel.selectedCity.isEmpty,
-              let schools = SampleData.schoolsByCity[viewModel.selectedCity] else {
-            return []
-        }
-        if viewModel.schoolSearchText.isEmpty {
-            return schools
-        }
-        return schools.filter {
-            $0.localizedCaseInsensitiveContains(viewModel.schoolSearchText)
-        }
-    }
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.xl) {
-                    // Header
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        Text("Where are you?")
-                            .font(BelongFont.h1())
-                            .foregroundStyle(BelongColor.textPrimary)
-                            .accessibilityAddTraits(.isHeader)
-
-                        Text("This helps us find gatherings near you.")
-                            .font(BelongFont.body())
-                            .foregroundStyle(BelongColor.textSecondary)
-                    }
-                    .padding(.top, Spacing.sm)
-
-                    // City picker
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        Text("City")
-                            .font(BelongFont.bodyMedium())
-                            .foregroundStyle(BelongColor.textPrimary)
-
-                        // Search field for city
-                        HStack(spacing: Spacing.sm) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(BelongColor.textTertiary)
-                            TextField("Search city", text: Bindable(viewModel).citySearchText)
-                                .font(BelongFont.body())
-                                .textInputAutocapitalization(.never)
-                        }
-                        .padding(.horizontal, Spacing.base)
-                        .frame(height: Layout.inputHeight)
-                        .background(BelongColor.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: Layout.radiusMd)
-                                .strokeBorder(BelongColor.border, lineWidth: 1)
-                        }
-                        .accessibilityLabel("Search city")
-
-                        // City list
-                        LazyVStack(spacing: 0) {
-                            ForEach(filteredCities, id: \.self) { city in
-                                cityRow(city)
-                            }
-                        }
-                    }
-
-                    // School picker — only after city is selected
-                    if !viewModel.selectedCity.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            Text("School")
-                                .font(BelongFont.bodyMedium())
-                                .foregroundStyle(BelongColor.textPrimary)
-
-                            // Search field for school
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(BelongColor.textTertiary)
-                                TextField("Search school", text: Bindable(viewModel).schoolSearchText)
-                                    .font(BelongFont.body())
-                                    .textInputAutocapitalization(.never)
-                            }
-                            .padding(.horizontal, Spacing.base)
-                            .frame(height: Layout.inputHeight)
-                            .background(BelongColor.surface)
-                            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: Layout.radiusMd)
-                                    .strokeBorder(BelongColor.border, lineWidth: 1)
-                            }
-                            .accessibilityLabel("Search school")
-
-                            // School list
-                            LazyVStack(spacing: 0) {
-                                ForEach(filteredSchools, id: \.self) { school in
-                                    schoolRow(school)
-                                }
-                            }
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    Spacer(minLength: Spacing.xl)
-
-                    // Continue button
-                    BelongButton(
-                        title: "Continue",
-                        style: .primary,
-                        isDisabled: !viewModel.isCitySchoolValid
-                    ) {
-                        onContinue()
-                    }
-                    .accessibilityHint("Continue to cultural tags")
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                CitySchoolHeader()
+                CitySearchSection()
+                if !viewModel.selectedCity.isEmpty {
+                    SchoolSearchSection()
                 }
-                .padding(.horizontal, Layout.screenPadding)
-                .padding(.bottom, Spacing.xxxl)
-                .animation(.easeInOut(duration: 0.3), value: viewModel.selectedCity)
+                CitySchoolContinueButton(path: $path)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .padding(.horizontal, Layout.screenPadding)
+            .padding(.top, Spacing.xl)
+            .padding(.bottom, Spacing.xxxl)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+        .background(BelongColor.background)
+        .navigationBarBackButtonHidden(false)
+        .task {
+            viewModel.searchCities()
+        }
+    }
+}
+
+struct CitySchoolHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Where are you?")
+                .font(BelongFont.h1())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            Text("This helps us show you local gatherings and people nearby.")
+                .font(BelongFont.body())
+                .foregroundStyle(BelongColor.textSecondary)
+        }
+    }
+}
+
+struct CitySearchSection: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("City")
+                .font(BelongFont.secondaryMedium())
+                .foregroundStyle(BelongColor.textSecondary)
+
+            SearchBar(
+                text: $vm.cityQuery,
+                placeholder: "Search for your city...",
+                onDebouncedChange: { _ in viewModel.searchCities() }
+            )
+            .accessibilityLabel("City search")
+
+            if !viewModel.cityResults.isEmpty && viewModel.selectedCity.isEmpty {
+                CityResultsList()
+            }
+
+            if !viewModel.selectedCity.isEmpty {
+                SelectedCityChip()
+            }
+        }
+    }
+}
+
+struct CityResultsList: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(viewModel.cityResults, id: \.self) { city in
                 Button {
-                    dismiss()
+                    viewModel.selectCity(city)
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(BelongColor.textPrimary)
+                    HStack {
+                        Image(systemName: "mappin.circle")
+                            .foregroundStyle(BelongColor.textTertiary)
+                        Text(city)
+                            .font(BelongFont.body())
+                            .foregroundStyle(BelongColor.textPrimary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.md)
                 }
-                .accessibilityLabel("Back")
+                .accessibilityLabel("Select \(city)")
+
+                if city != viewModel.cityResults.last {
+                    Divider()
+                        .background(BelongColor.divider)
+                }
+            }
+        }
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(BelongColor.border, lineWidth: 1)
+        )
+    }
+}
+
+struct SelectedCityChip: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "mappin.circle.fill")
+                .foregroundStyle(BelongColor.primary)
+            Text(viewModel.selectedCity)
+                .font(BelongFont.secondaryMedium())
+                .foregroundStyle(BelongColor.textPrimary)
+            Spacer()
+            Button {
+                viewModel.selectedCity = ""
+                viewModel.cityQuery = ""
+                viewModel.selectedSchool = ""
+                viewModel.schoolQuery = ""
+                viewModel.schoolResults = []
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+            .accessibilityLabel("Remove city selection")
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(BelongColor.surfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+    }
+}
+
+struct SchoolSearchSection: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("School / University")
+                .font(BelongFont.secondaryMedium())
+                .foregroundStyle(BelongColor.textSecondary)
+
+            if viewModel.selectedSchool.isEmpty {
+                SchoolResultsList()
+            } else {
+                SelectedSchoolChip()
             }
         }
     }
+}
 
-    // MARK: - Row Views
+struct SchoolResultsList: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
 
-    private func cityRow(_ city: String) -> some View {
-        let isSelected = viewModel.selectedCity == city
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(viewModel.schoolResults, id: \.self) { school in
+                Button {
+                    viewModel.selectSchool(school)
+                } label: {
+                    HStack {
+                        Image(systemName: "building.columns")
+                            .foregroundStyle(BelongColor.textTertiary)
+                        Text(school)
+                            .font(BelongFont.body())
+                            .foregroundStyle(BelongColor.textPrimary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.md)
+                }
+                .accessibilityLabel("Select \(school)")
 
-        return Button {
-            viewModel.selectedCity = city
-            viewModel.selectedSchool = ""
-            viewModel.schoolSearchText = ""
-        } label: {
-            HStack {
-                Text(city)
-                    .font(BelongFont.body())
-                    .foregroundStyle(BelongColor.textPrimary)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(BelongColor.primary)
-                        .font(.system(size: 14, weight: .semibold))
+                if school != viewModel.schoolResults.last {
+                    Divider()
+                        .background(BelongColor.divider)
                 }
             }
-            .padding(.horizontal, Spacing.base)
-            .frame(height: 48)
-            .background(isSelected ? BelongColor.surfaceSecondary : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(city)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(BelongColor.border, lineWidth: 1)
+        )
     }
+}
 
-    private func schoolRow(_ school: String) -> some View {
-        let isSelected = viewModel.selectedSchool == school
+struct SelectedSchoolChip: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
 
-        return Button {
-            viewModel.selectedSchool = school
-        } label: {
-            HStack {
-                Text(school)
-                    .font(BelongFont.body())
-                    .foregroundStyle(BelongColor.textPrimary)
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(BelongColor.primary)
-                        .font(.system(size: 14, weight: .semibold))
-                }
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "building.columns.fill")
+                .foregroundStyle(BelongColor.primary)
+            Text(viewModel.selectedSchool)
+                .font(BelongFont.secondaryMedium())
+                .foregroundStyle(BelongColor.textPrimary)
+            Spacer()
+            Button {
+                viewModel.selectedSchool = ""
+                viewModel.schoolQuery = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(BelongColor.textTertiary)
             }
-            .padding(.horizontal, Spacing.base)
-            .frame(height: 48)
-            .background(isSelected ? BelongColor.surfaceSecondary : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+            .accessibilityLabel("Remove school selection")
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(school)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(BelongColor.surfaceSecondary)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+    }
+}
+
+struct CitySchoolContinueButton: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Continue",
+            style: .primary,
+            isFullWidth: true,
+            isDisabled: !viewModel.canSelectCitySchool
+        ) {
+            path.append(.culturalTags)
+        }
     }
 }
 
 #Preview {
-    NavigationStack {
-        CitySchoolScreen(
-            viewModel: OnboardingViewModel(),
-            onContinue: {}
-        )
+    struct CitySchoolPreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                CitySchoolScreen(path: $path)
+            }
+            .environment(OnboardingViewModel(deps: DependencyContainer()))
+        }
     }
+    return CitySchoolPreview()
 }

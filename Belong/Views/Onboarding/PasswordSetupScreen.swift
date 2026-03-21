@@ -1,119 +1,130 @@
 import SwiftUI
 
-// MARK: - PasswordSetupScreen (S04)
-// Password creation with real-time rule checklist and confirm field.
-// ProgressBarView step 3 of 4.
-
 struct PasswordSetupScreen: View {
-    let viewModel: OnboardingViewModel
-    let onContinue: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    /// True when all 4 individual rules pass (before confirm match check)
-    private var allRulesMet: Bool {
-        viewModel.passwordRules.allSatisfy(\.met)
-    }
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 0) {
+            ProgressBarView(totalSegments: 4, filledSegments: 3)
+                .padding(.horizontal, Layout.screenPadding)
+                .padding(.top, Spacing.sm)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.xl) {
-                    ProgressBarView(totalSteps: 4, currentStep: 3)
-                        .padding(.top, Spacing.sm)
-
-                    // Header
-                    Text("Create a password")
-                        .font(BelongFont.h1())
-                        .foregroundStyle(BelongColor.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-
-                    // Password field
-                    BelongTextField(
-                        label: "Password",
-                        text: Bindable(viewModel).password,
-                        placeholder: "Enter your password",
-                        isSecure: true,
-                        autocapitalization: .never
-                    )
-
-                    // Password rules checklist
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        ForEach(viewModel.passwordRules, id: \.label) { rule in
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: rule.met ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(rule.met ? BelongColor.success : BelongColor.textTertiary)
-                                    .font(.system(size: 16))
-
-                                Text(rule.label)
-                                    .font(BelongFont.secondary())
-                                    .foregroundStyle(rule.met ? BelongColor.textPrimary : BelongColor.textTertiary)
-                            }
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("\(rule.label), \(rule.met ? "met" : "not met")")
-                        }
-                    }
-
-                    // Confirm password — only shows when all rules are met
-                    if allRulesMet {
-                        BelongTextField(
-                            label: "Confirm password",
-                            text: Bindable(viewModel).confirmPassword,
-                            placeholder: "Re-enter your password",
-                            errorMessage: confirmError,
-                            isSecure: true,
-                            autocapitalization: .never
-                        )
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    Spacer(minLength: Spacing.xl)
-
-                    // Continue button
-                    BelongButton(
-                        title: "Continue",
-                        style: .primary,
-                        isDisabled: !viewModel.isPasswordValid
-                    ) {
-                        onContinue()
-                    }
-                    .accessibilityHint("Continue to username selection")
+                    PasswordHeader()
+                    PasswordFields()
+                    PasswordRulesList()
+                    PasswordContinueButton(path: $path)
                 }
                 .padding(.horizontal, Layout.screenPadding)
-                .padding(.bottom, Spacing.xxxl)
-                .animation(.easeInOut(duration: 0.3), value: allRulesMet)
+                .padding(.top, Spacing.xxl)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(BelongColor.textPrimary)
-                }
-                .accessibilityLabel("Back")
+        .background(BelongColor.background)
+        .navigationBarBackButtonHidden(false)
+    }
+}
+
+struct PasswordHeader: View {
+    var body: some View {
+        Text("Create a password")
+            .font(BelongFont.h1())
+            .foregroundStyle(BelongColor.textPrimary)
+    }
+}
+
+struct PasswordFields: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var vm = viewModel
+        VStack(spacing: Spacing.base) {
+            BelongTextField(
+                label: "Password",
+                text: $vm.password,
+                placeholder: "Create a strong password",
+                isSecure: true
+            )
+            .textContentType(.newPassword)
+            .accessibilityLabel("New password")
+            .onChange(of: viewModel.password) { _, _ in
+                viewModel.validatePassword()
+            }
+
+            if viewModel.allPasswordRulesMet {
+                BelongTextField(
+                    label: "Confirm password",
+                    text: $vm.confirmPassword,
+                    placeholder: "Re-enter your password",
+                    errorMessage: confirmPasswordError,
+                    isSecure: true
+                )
+                .textContentType(.newPassword)
+                .accessibilityLabel("Confirm password")
             }
         }
     }
 
-    /// Show mismatch error only when user has started typing confirm and it doesn't match
-    private var confirmError: String? {
+    private var confirmPasswordError: String? {
         guard !viewModel.confirmPassword.isEmpty else { return nil }
-        return viewModel.password != viewModel.confirmPassword ? "Passwords don't match" : nil
+        return viewModel.passwordsMatch ? nil : "Passwords don't match"
+    }
+}
+
+struct PasswordRulesList: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            ForEach(viewModel.passwordRules) { rule in
+                PasswordRuleRow(rule: rule)
+            }
+        }
+    }
+}
+
+struct PasswordRuleRow: View {
+    let rule: PasswordRule
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: rule.met ? "checkmark.circle.fill" : "minus.circle")
+                .font(.system(size: 16))
+                .foregroundStyle(rule.met ? BelongColor.success : BelongColor.textTertiary)
+
+            Text(rule.label)
+                .font(BelongFont.secondary())
+                .foregroundStyle(rule.met ? BelongColor.success : BelongColor.textTertiary)
+        }
+    }
+}
+
+struct PasswordContinueButton: View {
+    @Environment(OnboardingViewModel.self) private var viewModel
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Continue",
+            style: .primary,
+            isFullWidth: true,
+            isDisabled: !viewModel.isPasswordStepValid
+        ) {
+            path.append(.username)
+        }
     }
 }
 
 #Preview {
-    NavigationStack {
-        PasswordSetupScreen(
-            viewModel: OnboardingViewModel(),
-            onContinue: {}
-        )
+    struct PasswordPreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                PasswordSetupScreen(path: $path)
+            }
+            .environment(OnboardingViewModel(deps: DependencyContainer()))
+        }
     }
+    return PasswordPreview()
 }

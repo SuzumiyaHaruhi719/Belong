@@ -1,94 +1,99 @@
 import SwiftUI
 
-// MARK: - BelongButton
-// Spec: 56pt height, 16pt radius, 4 variants.
-// UX Decision: Loading state disables tap and replaces label with spinner
-// to prevent duplicate submissions. Always full-width unless compact is set.
-
 enum BelongButtonStyle {
-    case primary      // Terracotta fill, white text
-    case secondary    // White fill, terracotta border & text
-    case tertiary     // No fill, no border, terracotta text
-    case destructive  // Red text, no fill
+    case primary, secondary, tertiary, destructive
 }
 
 struct BelongButton: View {
     let title: String
     let style: BelongButtonStyle
-    var systemImage: String? = nil
+    var isFullWidth: Bool = false
     var isLoading: Bool = false
     var isDisabled: Bool = false
-    var isFullWidth: Bool = true
+    var leadingIcon: String? = nil
     let action: () -> Void
 
-    private var isInteractive: Bool { !isLoading && !isDisabled }
+    var body: some View {
+        Button(action: action) {
+            BelongButtonContent(
+                title: title,
+                style: style,
+                isFullWidth: isFullWidth,
+                isLoading: isLoading,
+                leadingIcon: leadingIcon
+            )
+        }
+        .disabled(isDisabled || isLoading)
+        .accessibilityLabel(title)
+    }
+}
+
+struct BelongButtonContent: View {
+    let title: String
+    let style: BelongButtonStyle
+    let isFullWidth: Bool
+    let isLoading: Bool
+    let leadingIcon: String?
 
     var body: some View {
-        Button(action: {
-            guard isInteractive else { return }
-            action()
-        }) {
-            HStack(spacing: Spacing.sm) {
-                if isLoading {
-                    ProgressView()
-                        .tint(textColor)
-                } else {
-                    if let systemImage {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    Text(title)
-                        .font(BelongFont.button())
+        HStack(spacing: Spacing.sm) {
+            if isLoading {
+                ProgressView()
+                    .tint(foregroundColor)
+            } else {
+                if let icon = leadingIcon {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
                 }
-            }
-            .frame(maxWidth: isFullWidth ? .infinity : nil)
-            .frame(height: Layout.buttonHeight)
-            .foregroundStyle(isDisabled ? BelongColor.disabledText : textColor)
-            .background(isDisabled ? BelongColor.disabled : backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-            .overlay {
-                if style == .secondary && !isDisabled {
-                    RoundedRectangle(cornerRadius: Layout.radiusLg)
-                        .strokeBorder(BelongColor.primary, lineWidth: 1.5)
-                }
+                Text(title)
+                    .font(BelongFont.button())
             }
         }
-        .buttonStyle(.plain)
-        .opacity(isLoading ? 0.8 : 1)
-        .allowsHitTesting(isInteractive)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityRemoveTraits(isInteractive ? [] : .isButton)
-        .accessibilityHint(isLoading ? "Loading" : isDisabled ? "Disabled" : "")
+        .frame(maxWidth: isFullWidth ? .infinity : nil)
+        .frame(height: Layout.buttonHeight)
+        .padding(.horizontal, Spacing.xl)
+        .foregroundStyle(foregroundColor)
+        .background(backgroundColor)
+        .overlay(borderOverlay)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
     }
 
-    private var textColor: Color {
+    private var foregroundColor: Color {
         switch style {
-        case .primary: return BelongColor.textOnPrimary
-        case .secondary: return BelongColor.primary
-        case .tertiary: return BelongColor.primary
-        case .destructive: return BelongColor.error
+        case .primary: BelongColor.textOnPrimary
+        case .secondary: BelongColor.primary
+        case .tertiary: BelongColor.primary
+        case .destructive: BelongColor.textOnPrimary
         }
     }
 
     private var backgroundColor: Color {
         switch style {
-        case .primary: return BelongColor.primary
-        case .secondary: return BelongColor.surface
-        case .tertiary: return .clear
-        case .destructive: return .clear
+        case .primary: BelongColor.primary
+        case .secondary: BelongColor.surface
+        case .tertiary: Color.clear
+        case .destructive: BelongColor.error
+        }
+    }
+
+    @ViewBuilder
+    private var borderOverlay: some View {
+        if style == .secondary {
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(BelongColor.primary, lineWidth: 1.5)
         }
     }
 }
 
-#Preview("Button Variants") {
-    VStack(spacing: 16) {
-        BelongButton(title: "Continue", style: .primary) {}
-        BelongButton(title: "Maybe Later", style: .secondary) {}
-        BelongButton(title: "Skip for now", style: .tertiary) {}
-        BelongButton(title: "Delete Account", style: .destructive) {}
-        BelongButton(title: "Loading...", style: .primary, isLoading: true) {}
-        BelongButton(title: "Disabled", style: .primary, isDisabled: true) {}
+#Preview {
+    VStack(spacing: Spacing.base) {
+        BelongButton(title: "Primary", style: .primary, isFullWidth: true, action: {})
+        BelongButton(title: "Secondary", style: .secondary, isFullWidth: true, action: {})
+        BelongButton(title: "Tertiary", style: .tertiary, action: {})
+        BelongButton(title: "Destructive", style: .destructive, isFullWidth: true, action: {})
+        BelongButton(title: "Loading", style: .primary, isFullWidth: true, isLoading: true, action: {})
+        BelongButton(title: "Disabled", style: .primary, isFullWidth: true, isDisabled: true, action: {})
+        BelongButton(title: "With Icon", style: .primary, leadingIcon: "plus", action: {})
     }
     .padding()
     .background(BelongColor.background)

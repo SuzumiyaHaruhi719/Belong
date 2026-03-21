@@ -1,11 +1,13 @@
 import Foundation
 
-// MARK: - Hosting Template
-
-struct HostingTemplate: Identifiable, Hashable {
+struct HostingTemplate: Identifiable, Codable, Hashable {
     let id: String
     let title: String
-    let systemImage: String   // SF Symbol name
+    let systemImage: String
+    let emoji: String
     let description: String
     let defaultTags: [String]
+    let defaultMaxAttendees: Int
+    let defaultVisibility: GatheringVisibility
+    let defaultVibe: GatheringVibe
 }

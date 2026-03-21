@@ -1,56 +1,82 @@
 import SwiftUI
 
-// MARK: - EmailConfirmedScreen (S06)
-// Success state after account creation steps are complete.
-// Large checkmark, congratulatory text, single CTA. No back button.
-
 struct EmailConfirmedScreen: View {
-    let onContinue: () -> Void
+    @Binding var path: [AppState.OnboardingStep]
 
     var body: some View {
-        ZStack {
-            BelongColor.background
-                .ignoresSafeArea()
-
-            VStack(spacing: Spacing.xl) {
-                Spacer()
-
-                // Success icon
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(BelongColor.success)
-                    .accessibilityHidden(true)
-
-                // Text
-                VStack(spacing: Spacing.sm) {
-                    Text("You're verified!")
-                        .font(BelongFont.h1())
-                        .foregroundStyle(BelongColor.textPrimary)
-                        .accessibilityAddTraits(.isHeader)
-
-                    Text("Your account is ready. Let's set up your profile.")
-                        .font(BelongFont.body())
-                        .foregroundStyle(BelongColor.textSecondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                Spacer()
-
-                // CTA
-                BelongButton(title: "Set up my profile", style: .primary) {
-                    onContinue()
-                }
-                .accessibilityHint("Continue to profile setup")
-            }
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.bottom, Spacing.xxxl)
+        VStack(spacing: Spacing.xxl) {
+            Spacer()
+            EmailConfirmedBadge()
+            EmailConfirmedText()
+            Spacer()
+            EmailConfirmedAction(path: $path)
         }
+        .padding(.horizontal, Layout.screenPadding)
+        .padding(.bottom, Spacing.xxxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BelongColor.background)
         .navigationBarBackButtonHidden(true)
     }
 }
 
-#Preview {
-    NavigationStack {
-        EmailConfirmedScreen(onContinue: {})
+struct EmailConfirmedBadge: View {
+    @State private var animate = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(BelongColor.successLight)
+                .frame(width: 120, height: 120)
+                .scaleEffect(animate ? 1.0 : 0.5)
+                .opacity(animate ? 1.0 : 0.0)
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(BelongColor.success)
+                .scaleEffect(animate ? 1.0 : 0.3)
+        }
+        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: animate)
+        .task { animate = true }
     }
+}
+
+struct EmailConfirmedText: View {
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            Text("You're in!")
+                .font(BelongFont.h1())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            Text("Your account is ready. Let's set up your profile.")
+                .font(BelongFont.body())
+                .foregroundStyle(BelongColor.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+}
+
+struct EmailConfirmedAction: View {
+    @Binding var path: [AppState.OnboardingStep]
+
+    var body: some View {
+        BelongButton(
+            title: "Set up profile \u{2192}",
+            style: .primary,
+            isFullWidth: true
+        ) {
+            path.append(.avatar)
+        }
+    }
+}
+
+#Preview {
+    struct EmailConfirmedPreview: View {
+        @State private var path: [AppState.OnboardingStep] = []
+        var body: some View {
+            NavigationStack(path: $path) {
+                EmailConfirmedScreen(path: $path)
+            }
+        }
+    }
+    return EmailConfirmedPreview()
 }

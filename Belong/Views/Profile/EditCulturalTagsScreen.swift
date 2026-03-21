@@ -1,77 +1,130 @@
 import SwiftUI
 
-// MARK: - EditCulturalTagsScreen (S24)
-// Edit version of the cultural tags picker from onboarding (S10).
-// UX Decision: Pre-populated selections make it clear what's already chosen,
-// and "Clear all" provides a quick reset without tedious one-by-one removal.
-
 struct EditCulturalTagsScreen: View {
-    @Bindable var viewModel: ProfileViewModel
+    @Environment(DependencyContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
+    @State private var viewModel: EditProfileViewModel?
+    @State private var backgroundPresets: [String] = []
+    @State private var languagePresets: [String] = []
+    @State private var interestPresets: [String] = []
+
+    var body: some View {
+        Group {
+            if let vm = viewModel {
+                EditCulturalTagsContent(
+                    viewModel: vm,
+                    backgroundPresets: backgroundPresets,
+                    languagePresets: languagePresets,
+                    interestPresets: interestPresets,
+                    onDismiss: { dismiss() }
+                )
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(BelongColor.background)
+        .navigationTitle("Cultural Tags")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if viewModel == nil {
+                let vm = EditProfileViewModel(userService: container.userService)
+                viewModel = vm
+            }
+            do {
+                backgroundPresets = try await container.userService.fetchTagPresets(category: .culturalBackground)
+                languagePresets = try await container.userService.fetchTagPresets(category: .language)
+                interestPresets = try await container.userService.fetchTagPresets(category: .interestVibe)
+            } catch {
+                viewModel?.error = error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - Content
+
+private struct EditCulturalTagsContent: View {
+    @Bindable var viewModel: EditProfileViewModel
+    let backgroundPresets: [String]
+    let languagePresets: [String]
+    let interestPresets: [String]
+    let onDismiss: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.xl) {
-                ChipGroup(
-                    title: "Cultural background",
-                    options: SampleData.culturalTagOptions.background,
+                if let error = viewModel.error {
+                    InlineErrorBanner(message: error) {
+                        viewModel.error = nil
+                    }
+                }
+
+                TagSection(
+                    title: "Cultural Background",
+                    options: backgroundPresets,
                     selected: $viewModel.editingBackground
                 )
 
-                ChipGroup(
+                TagSection(
                     title: "Languages",
-                    options: SampleData.culturalTagOptions.languages,
+                    options: languagePresets,
                     selected: $viewModel.editingLanguages
                 )
 
-                ChipGroup(
-                    title: "Interests",
-                    options: SampleData.culturalTagOptions.interests,
+                TagSection(
+                    title: "Interests & Vibes",
+                    options: interestPresets,
                     selected: $viewModel.editingInterests
                 )
 
-                BelongButton(
-                    title: "Clear all",
-                    style: .tertiary
-                ) {
-                    viewModel.clearAllTags()
+                BelongButton(title: "Clear All", style: .tertiary) {
+                    viewModel.editingBackground.removeAll()
+                    viewModel.editingLanguages.removeAll()
+                    viewModel.editingInterests.removeAll()
                 }
-                .accessibilityLabel("Clear all selected tags")
+                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .padding(.horizontal, Layout.screenPadding)
+            .padding(Layout.screenPadding)
             .padding(.bottom, Spacing.xxxl)
         }
-        .background(BelongColor.background)
-        .navigationTitle("Edit Tags")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    viewModel.saveTags()
-                    dismiss()
-                } label: {
-                    Text("Save")
-                        .font(BelongFont.bodySemiBold())
-                        .foregroundStyle(
-                            viewModel.hasTagChanges
-                                ? BelongColor.primary
-                                : BelongColor.disabledText
-                        )
+                Button("Save") {
+                    Task {
+                        let success = await viewModel.saveTags()
+                        if success { onDismiss() }
+                    }
                 }
-                .disabled(!viewModel.hasTagChanges)
-                .accessibilityLabel("Save tag changes")
-                .accessibilityHint(viewModel.hasTagChanges ? "Saves your changes" : "No changes to save")
+                .font(BelongFont.bodySemiBold())
+                .foregroundStyle(BelongColor.primary)
+                .disabled(viewModel.isSaving)
             }
+        }
+    }
+}
+
+// MARK: - Tag Section
+
+private struct TagSection: View {
+    let title: String
+    let options: [String]
+    @Binding var selected: Set<String>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text(title)
+                .font(BelongFont.h3())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            ChipGroup(options: options, selected: $selected)
         }
     }
 }
 
 #Preview {
     NavigationStack {
-        EditCulturalTagsScreen(viewModel: {
-            let vm = ProfileViewModel()
-            vm.beginEditingTags()
-            return vm
-        }())
+        EditCulturalTagsScreen()
     }
+    .environment(DependencyContainer())
 }

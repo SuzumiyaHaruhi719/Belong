@@ -1,32 +1,35 @@
 import SwiftUI
 
-// MARK: - ProgressBarView
-// Spec S02–S05: 4-segment progress bar for onboarding account creation.
-// UX Decision: Segmented (not continuous) to show distinct steps.
-// Completed segments fill with primary color; upcoming are border-only.
-
 struct ProgressBarView: View {
-    let totalSteps: Int
-    let currentStep: Int  // 1-based
+    let totalSegments: Int
+    let filledSegments: Int
 
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            ForEach(1...totalSteps, id: \.self) { step in
-                Capsule()
-                    .fill(step <= currentStep ? BelongColor.primary : BelongColor.border)
-                    .frame(height: 4)
+            ForEach(0..<totalSegments, id: \.self) { index in
+                ProgressBarSegment(isFilled: index < filledSegments)
             }
         }
-        .accessibilityLabel("Step \(currentStep) of \(totalSteps)")
+        .frame(height: 4)
+        .accessibilityLabel("Progress: step \(filledSegments) of \(totalSegments)")
+    }
+}
+
+struct ProgressBarSegment: View {
+    let isFilled: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(isFilled ? BelongColor.primary : BelongColor.divider)
     }
 }
 
 #Preview {
-    VStack(spacing: 16) {
-        ProgressBarView(totalSteps: 4, currentStep: 1)
-        ProgressBarView(totalSteps: 4, currentStep: 2)
-        ProgressBarView(totalSteps: 4, currentStep: 3)
-        ProgressBarView(totalSteps: 4, currentStep: 4)
+    VStack(spacing: Spacing.lg) {
+        ProgressBarView(totalSegments: 4, filledSegments: 1)
+        ProgressBarView(totalSegments: 4, filledSegments: 2)
+        ProgressBarView(totalSegments: 4, filledSegments: 3)
+        ProgressBarView(totalSegments: 4, filledSegments: 4)
     }
     .padding()
     .background(BelongColor.background)

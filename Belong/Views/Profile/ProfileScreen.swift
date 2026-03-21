@@ -1,85 +1,346 @@
 import SwiftUI
 
-// MARK: - ProfileScreen (S23) — Enhanced
-// User profile hub with segmented sections: Overview, Activity, Hosted.
-//
-// UX Decisions:
-// - Segmented control keeps the profile scannable while providing depth.
-// - Overview shows identity + stats + tags + connections (the "who I am" view).
-// - Activity shows browsing history + join history (the "what I've done" view).
-// - Hosted shows host history with ratings (the "what I've created" view).
-// - Stats row creates a sense of community investment and personal growth.
-// - Horizontal scroll for connections keeps Overview scannable.
-// - Browsing history includes a "Clear" option for privacy comfort.
-// - Unrated past events surface gently — no forced modals.
-
 struct ProfileScreen: View {
-    @State private var viewModel = ProfileViewModel()
-    @State private var navigateToEditTags = false
-    @State private var navigateToSaved = false
-    @State private var navigateToSettings = false
+    @Environment(AppState.self) private var appState
+    @Environment(DependencyContainer.self) private var container
+    @State private var viewModel: ProfileViewModel?
 
-    // NOTE: No NavigationStack here — ProfileNavigationStack in MainTabView provides it.
-    // Double-wrapping NavigationStack causes broken push transitions.
+    var body: some View {
+        Group {
+            if let vm = viewModel {
+                ProfileScreenContent(viewModel: vm)
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(BelongColor.background)
+        .task {
+            if viewModel == nil {
+                viewModel = ProfileViewModel(userService: container.userService)
+            }
+            await viewModel?.loadProfile()
+            await viewModel?.loadMyPosts()
+            await viewModel?.loadMyGatherings()
+        }
+    }
+}
+
+// MARK: - Content
+
+private struct ProfileScreenContent: View {
+    @Bindable var viewModel: ProfileViewModel
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        Group {
+            if viewModel.isLoading && viewModel.user == nil {
+                ProfileScreenLoading()
+            } else if let errorMsg = viewModel.error, viewModel.user == nil {
+                ErrorStateView(message: errorMsg) {
+                    Task { await viewModel.loadProfile() }
+                }
+            } else if let user = viewModel.user {
+                ProfileScrollContent(user: user, viewModel: viewModel)
+            }
+        }
+        .navigationTitle("Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: ProfileRoute.settings) {
+                    Image(systemName: "gearshape")
+                        .foregroundStyle(BelongColor.textPrimary)
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+    }
+}
+
+// MARK: - Scroll Content
+
+private struct ProfileScrollContent: View {
+    let user: User
+    @Bindable var viewModel: ProfileViewModel
 
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.xl) {
-                ProfileIdentityHeader(user: viewModel.user)
+            LazyVStack(spacing: Spacing.lg) {
+                ProfileHeaderSection(user: user)
+                ProfileStatsRow(user: user)
+                ProfileActionButtons()
+                ProfileCulturalTags()
+                ProfileTabSelector(selectedTab: $viewModel.selectedProfileTab)
 
-                ProfileStatsRow(stats: viewModel.user.stats)
-
-                // Segmented section picker
-                Picker("Section", selection: $viewModel.selectedSection) {
-                    ForEach(ProfileViewModel.ProfileSection.allCases, id: \.self) { section in
-                        Text(section.rawValue).tag(section)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, Layout.screenPadding)
-
-                // Section content
-                switch viewModel.selectedSection {
-                case .overview:
-                    ProfileOverviewSection(
-                        viewModel: viewModel,
-                        onEditTags: {
-                            viewModel.beginEditingTags()
-                            navigateToEditTags = true
-                        },
-                        onSaved: { navigateToSaved = true }
-                    )
-                case .activity:
-                    ProfileActivitySection(viewModel: viewModel)
-                case .hosted:
-                    ProfileHostedSection(viewModel: viewModel)
+                switch viewModel.selectedProfileTab {
+                case .posts:
+                    ProfilePostsGrid(posts: viewModel.myPosts)
+                case .gatherings:
+                    ProfileGatheringsList(gatherings: viewModel.myGatherings)
                 }
             }
             .padding(.bottom, Spacing.xxxl)
         }
-        .background(BelongColor.background)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Settings", systemImage: "gearshape") {
-                    navigateToSettings = true
+    }
+}
+
+// MARK: - Header
+
+private struct ProfileHeaderSection: View {
+    let user: User
+
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            ZStack(alignment: .bottomTrailing) {
+                AvatarView(imageURL: user.avatarURL, emoji: SampleData.avatarEmoji(for: user.id), size: .xlarge)
+                NavigationLink(value: ProfileRoute.editProfile) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(BelongColor.textOnPrimary)
+                        .frame(width: 28, height: 28)
+                        .background(BelongColor.primary)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(BelongColor.surface, lineWidth: 2))
                 }
-                .font(.system(size: 18))
+                .accessibilityLabel("Edit avatar")
+            }
+
+            Text(user.displayName)
+                .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
-                .frame(width: Layout.touchTargetMin, height: Layout.touchTargetMin)
+
+            Text("@\(user.username)")
+                .font(BelongFont.secondary())
+                .foregroundStyle(BelongColor.textSecondary)
+
+            if !user.bio.isEmpty {
+                Text(user.bio)
+                    .font(BelongFont.secondary())
+                    .foregroundStyle(BelongColor.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.xl)
+            }
+
+            HStack(spacing: Spacing.sm) {
+                if !user.school.isEmpty {
+                    Label(user.school, systemImage: "graduationcap")
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.textSecondary)
+                }
+                if !user.city.isEmpty {
+                    Label(user.city, systemImage: "mappin")
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.textSecondary)
+                }
             }
         }
-        .navigationDestination(isPresented: $navigateToEditTags) {
-            EditCulturalTagsScreen(viewModel: viewModel)
+        .padding(.top, Spacing.base)
+    }
+}
+
+// MARK: - Stats
+
+private struct ProfileStatsRow: View {
+    let user: User
+
+    var body: some View {
+        HStack(spacing: 0) {
+            NavigationLink(value: ProfileRoute.following) {
+                ProfileStatColumn(count: user.followingCount, label: "Following")
+            }
+            NavigationLink(value: ProfileRoute.followers) {
+                ProfileStatColumn(count: user.followerCount, label: "Followers")
+            }
+            NavigationLink(value: ProfileRoute.mutuals) {
+                ProfileStatColumn(count: user.mutualCount, label: "Mutuals")
+            }
         }
-        .navigationDestination(isPresented: $navigateToSaved) {
-            SavedGatheringsScreen(viewModel: viewModel)
+        .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+private struct ProfileStatColumn: View {
+    let count: Int
+    let label: String
+
+    var body: some View {
+        VStack(spacing: Spacing.xs) {
+            Text("\(count)")
+                .font(BelongFont.h2())
+                .foregroundStyle(BelongColor.textPrimary)
+            Text(label)
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.textSecondary)
         }
-        .navigationDestination(isPresented: $navigateToSettings) {
-            SettingsScreen()
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Action Buttons
+
+private struct ProfileActionButtons: View {
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            NavigationLink(value: ProfileRoute.editProfile) {
+                Text("Edit Profile")
+                    .font(BelongFont.button())
+                    .foregroundStyle(BelongColor.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Layout.buttonHeight)
+                    .background(BelongColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Layout.radiusMd)
+                            .stroke(BelongColor.primary, lineWidth: 1.5)
+                    )
+            }
         }
-        .task {
-            await viewModel.load()
+        .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+// MARK: - Cultural Tags
+
+private struct ProfileCulturalTags: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Text("Cultural Tags")
+                    .font(BelongFont.h3())
+                    .foregroundStyle(BelongColor.textPrimary)
+                Spacer()
+                NavigationLink(value: ProfileRoute.editTags) {
+                    Text("Edit")
+                        .font(BelongFont.secondaryMedium())
+                        .foregroundStyle(BelongColor.primary)
+                }
+            }
+
+            FlowLayout(spacing: Spacing.sm, data: ["Vietnamese", "English", "Food", "Cooking", "Hiking"]) { tag in
+                ChipView(title: tag, isSelected: true)
+            }
+        }
+        .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+// MARK: - Tab Selector
+
+private struct ProfileTabSelector: View {
+    @Binding var selectedTab: ProfileTab
+
+    var body: some View {
+        Picker("Content", selection: $selectedTab) {
+            ForEach(ProfileTab.allCases, id: \.self) { tab in
+                Text(tab.rawValue).tag(tab)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+// MARK: - Posts Grid
+
+private struct ProfilePostsGrid: View {
+    let posts: [Post]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
+
+    var body: some View {
+        if posts.isEmpty {
+            EmptyStateView(
+                icon: "square.grid.2x2",
+                title: "No posts yet",
+                message: "Share your first post with the community."
+            )
+        } else {
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(posts) { post in
+                    NavigationLink(value: PostsRoute.detail(post)) {
+                        ProfilePostThumbnail(post: post)
+                    }
+                }
+            }
+            .padding(.horizontal, Layout.screenPadding)
+        }
+    }
+}
+
+private struct ProfilePostThumbnail: View {
+    let post: Post
+
+    var body: some View {
+        Group {
+            if let image = post.coverImage {
+                AsyncImage(url: image.imageURL) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        thumbnailPlaceholder
+                    }
+                }
+            } else {
+                thumbnailPlaceholder
+            }
+        }
+        .frame(minHeight: 110)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusSm))
+    }
+
+    private var thumbnailPlaceholder: some View {
+        ZStack {
+            BelongColor.surfaceSecondary
+            Image(systemName: "text.quote")
+                .font(.system(size: 20))
+                .foregroundStyle(BelongColor.textTertiary)
+        }
+    }
+}
+
+// MARK: - Gatherings List
+
+private struct ProfileGatheringsList: View {
+    let gatherings: [Gathering]
+
+    var body: some View {
+        if gatherings.isEmpty {
+            EmptyStateView(
+                icon: "person.3",
+                title: "No gatherings yet",
+                message: "Join or host a gathering to see it here."
+            )
+        } else {
+            LazyVStack(spacing: Spacing.base) {
+                ForEach(gatherings) { gathering in
+                    NavigationLink(value: GatheringsRoute.detail(gathering)) {
+                        GatheringCard(gathering: gathering)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, Layout.screenPadding)
+        }
+    }
+}
+
+// MARK: - Loading
+
+private struct ProfileScreenLoading: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: Spacing.lg) {
+                SkeletonView(width: 80, height: 80, cornerRadius: 40)
+                SkeletonView(width: 140, height: 24)
+                SkeletonView(width: 100, height: 16)
+                SkeletonView(height: 40)
+                    .padding(.horizontal, Layout.screenPadding)
+                SkeletonCard()
+                    .padding(.horizontal, Layout.screenPadding)
+            }
+            .padding(.top, Spacing.xl)
         }
     }
 }
@@ -89,4 +350,5 @@ struct ProfileScreen: View {
         ProfileScreen()
     }
     .environment(AppState())
+    .environment(DependencyContainer())
 }
