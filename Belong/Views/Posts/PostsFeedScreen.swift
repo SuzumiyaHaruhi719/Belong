@@ -142,21 +142,18 @@ private struct CompactPostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image — fixed height, fully clipped
-            postImageView
-                .frame(maxWidth: .infinity)
+            // Image — Color.clear sets the LAYOUT height, overlay fills it,
+            // .clipped() trims any overflow. This is the only reliable way
+            // to prevent scaledToFill from expanding the layout frame.
+            Color.clear
                 .frame(height: 160)
+                .overlay {
+                    postImageView
+                }
                 .clipped()
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: Layout.radiusMd,
-                        topTrailingRadius: Layout.radiusMd
-                    )
-                )
 
-            // Text body — clear separation from image
+            // Text body
             VStack(alignment: .leading, spacing: 6) {
-                // Author row
                 HStack(spacing: 4) {
                     AvatarView(
                         imageURL: post.authorAvatarURL,
@@ -172,20 +169,16 @@ private struct CompactPostCard: View {
                         .lineLimit(1)
                 }
 
-                // Content text
                 Text(post.content)
                     .font(BelongFont.captionMedium())
                     .foregroundStyle(BelongColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                // Stats row
                 HStack(spacing: Spacing.md) {
                     Button(action: { onLike?() }) {
                         Label {
-                            if post.likeCount > 0 {
-                                Text("\(post.likeCount)")
-                            }
+                            if post.likeCount > 0 { Text("\(post.likeCount)") }
                         } icon: {
                             Image(systemName: post.isLiked ? "heart.fill" : "heart")
                         }
@@ -194,9 +187,7 @@ private struct CompactPostCard: View {
                     .buttonStyle(.plain)
 
                     Label {
-                        if post.commentCount > 0 {
-                            Text("\(post.commentCount)")
-                        }
+                        if post.commentCount > 0 { Text("\(post.commentCount)") }
                     } icon: {
                         Image(systemName: "bubble.left")
                     }
@@ -222,8 +213,7 @@ private struct CompactPostCard: View {
             AsyncImage(url: image.imageURL) { phase in
                 switch phase {
                 case .success(let img):
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
+                    img.resizable().scaledToFill()
                 default:
                     cardPlaceholder
                 }
@@ -240,6 +230,7 @@ private struct CompactPostCard: View {
                 .font(.system(size: 20))
                 .foregroundStyle(BelongColor.textTertiary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

@@ -355,17 +355,15 @@ private struct ProfilePostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image — fixed height, fully clipped to prevent overflow
-            postImage
-                .frame(maxWidth: .infinity)
+            // Color.clear sets the LAYOUT height. Overlay fills it.
+            // .clipped() trims overflow. This prevents scaledToFill
+            // from expanding the layout and stacking into neighbors.
+            Color.clear
                 .frame(height: 140)
+                .overlay {
+                    postImage
+                }
                 .clipped()
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: Layout.radiusMd,
-                        topTrailingRadius: Layout.radiusMd
-                    )
-                )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(post.content)
@@ -395,8 +393,7 @@ private struct ProfilePostCard: View {
             AsyncImage(url: image.imageURL) { phase in
                 switch phase {
                 case .success(let img):
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
+                    img.resizable().scaledToFill()
                 default:
                     cardPlaceholder
                 }
@@ -413,6 +410,7 @@ private struct ProfilePostCard: View {
                 .font(.system(size: 20))
                 .foregroundStyle(BelongColor.textTertiary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
