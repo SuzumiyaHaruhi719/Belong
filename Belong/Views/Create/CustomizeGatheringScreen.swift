@@ -33,6 +33,7 @@ struct CustomizeGatheringScreen: View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.xl) {
+                    CustomizeGatheringCoverSection(viewModel: viewModel)
                     CustomizeGatheringDetailsSection(viewModel: viewModel, attemptedPreview: attemptedPreview)
                     CustomizeGatheringWhenSection(viewModel: viewModel, attemptedPreview: attemptedPreview)
                     CustomizeGatheringWhereSection(viewModel: viewModel, attemptedPreview: attemptedPreview)
@@ -65,6 +66,71 @@ struct CustomizeGatheringScreen: View {
                 .font(BelongFont.secondaryMedium())
                 .foregroundStyle(BelongColor.primary)
             }
+        }
+    }
+}
+
+// MARK: - Cover Image Section
+// UX: Large tappable area at the top of the form encourages adding a cover photo.
+// Shows the selected image with an overlay upload state indicator.
+// "Remove" button appears only after an image is selected.
+
+private struct CustomizeGatheringCoverSection: View {
+    @Bindable var viewModel: CreateGatheringViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.base) {
+            Text("Cover Image")
+                .font(BelongFont.h3())
+                .foregroundStyle(BelongColor.textPrimary)
+
+            ImagePickerButton { image in
+                viewModel.selectCoverImage(image)
+            } label: {
+                ZStack {
+                    if let coverImage = viewModel.coverImage {
+                        // Show selected image
+                        Image(uiImage: coverImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
+                    } else {
+                        // Placeholder
+                        RoundedRectangle(cornerRadius: Layout.radiusLg)
+                            .fill(BelongColor.surfaceSecondary)
+                            .frame(height: 180)
+                            .overlay {
+                                VStack(spacing: Spacing.sm) {
+                                    Image(systemName: "photo.badge.plus")
+                                        .font(.system(size: 32))
+                                        .foregroundStyle(BelongColor.textTertiary)
+                                    Text("Add cover photo")
+                                        .font(BelongFont.secondary())
+                                        .foregroundStyle(BelongColor.textTertiary)
+                                }
+                            }
+                    }
+
+                    // Upload state overlay
+                    ImageUploadOverlay(state: viewModel.coverUploadState)
+                        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
+                }
+            }
+            .accessibilityLabel("Select cover image for gathering")
+
+            // Remove button when image exists
+            if viewModel.coverImage != nil {
+                Button("Remove cover photo", role: .destructive) {
+                    viewModel.removeCoverImage()
+                }
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.error)
+            }
+
+            Text("A good cover photo helps your gathering stand out")
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.textTertiary)
         }
     }
 }

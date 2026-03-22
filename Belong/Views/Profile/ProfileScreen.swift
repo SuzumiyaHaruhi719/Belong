@@ -73,7 +73,8 @@ private struct ProfileScrollContent: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 // Cover banner with overlapping avatar
-                ProfileCoverBanner(user: user)
+                // Tapping banner → upload background; tapping avatar → upload photo
+                ProfileCoverBanner(user: user, viewModel: viewModel)
 
                 // Compact identity (name, username, bio, school)
                 ProfileCompactIdentity(user: user)
@@ -120,50 +121,103 @@ private struct ProfileScrollContent: View {
 
 private struct ProfileCoverBanner: View {
     let user: User
+    @Bindable var viewModel: ProfileViewModel
     private let bannerHeight: CGFloat = 150
     private let avatarOverlap: CGFloat = 32
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Banner image or default gradient
-            if let bgURL = user.profileBackgroundURL {
-                AsyncImage(url: bgURL) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    default:
+            // Banner — tappable to upload custom background
+            ImagePickerButton { image in
+                viewModel.uploadBackground(image)
+            } label: {
+                ZStack {
+                    if let selectedBg = viewModel.selectedBackgroundImage {
+                        Image(uiImage: selectedBg)
+                            .resizable().scaledToFill()
+                            .frame(height: bannerHeight)
+                            .clipped()
+                    } else if let bgURL = user.profileBackgroundURL {
+                        AsyncImage(url: bgURL) { phase in
+                            switch phase {
+                            case .success(let img):
+                                img.resizable().scaledToFill()
+                            default:
+                                defaultGradient
+                            }
+                        }
+                        .frame(height: bannerHeight)
+                        .clipped()
+                    } else {
                         defaultGradient
+                            .frame(height: bannerHeight)
+                    }
+
+                    // Upload overlay
+                    ImageUploadOverlay(state: viewModel.backgroundUploadState)
+
+                    // Camera hint on banner
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white)
+                                .padding(6)
+                                .background(.black.opacity(0.4))
+                                .clipShape(Circle())
+                                .padding(Spacing.sm)
+                        }
+                        Spacer()
                     }
                 }
                 .frame(height: bannerHeight)
-                .clipped()
-            } else {
-                defaultGradient
-                    .frame(height: bannerHeight)
             }
+            .accessibilityLabel("Tap to change profile background")
 
-            // Avatar overlapping banner bottom
+            // Avatar — tappable to upload photo
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(
-                    imageURL: user.avatarURL,
-                    emoji: SampleData.avatarEmoji(for: user.id),
-                    size: .xlarge
-                )
-                .frame(width: 68, height: 68)
-                .background(BelongColor.background)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(BelongColor.background, lineWidth: 3))
-
-                NavigationLink(value: ProfileRoute.editProfile) {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(BelongColor.textOnPrimary)
-                        .frame(width: 22, height: 22)
-                        .background(BelongColor.primary)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(BelongColor.background, lineWidth: 2))
+                ImagePickerButton { image in
+                    viewModel.uploadAvatar(image)
+                } label: {
+                    ZStack {
+                        if let selectedAvatar = viewModel.selectedAvatarImage {
+                            Image(uiImage: selectedAvatar)
+                                .resizable().scaledToFill()
+                                .frame(width: 68, height: 68)
+                                .clipShape(Circle())
+                        } else {
+                            AvatarView(
+                                imageURL: user.avatarURL,
+                                emoji: SampleData.avatarEmoji(for: user.id),
+                                size: .xlarge
+                            )
+                            .frame(width: 68, height: 68)
+                        }
+                    }
+                    .background(BelongColor.background)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(BelongColor.background, lineWidth: 3))
+                    .overlay {
+                        // Upload overlay on avatar
+                        if case .uploading = viewModel.avatarUploadState {
+                            Circle()
+                                .fill(.black.opacity(0.4))
+                                .overlay { ProgressView().tint(.white) }
+                        }
+                    }
                 }
-                .accessibilityLabel("Edit avatar")
+                .accessibilityLabel("Tap to change avatar")
+
+                // Camera badge
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(BelongColor.textOnPrimary)
+                    .frame(width: 22, height: 22)
+                    .background(BelongColor.primary)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(BelongColor.background, lineWidth: 2))
+                    .allowsHitTesting(false) // Let the ImagePickerButton handle taps
             }
             .offset(y: avatarOverlap)
         }
