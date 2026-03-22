@@ -14,6 +14,11 @@ final class CreateGatheringViewModel {
     var selectedVibe: GatheringVibe = .welcoming
     var selectedTags: Set<String> = []
 
+    // Cover image upload
+    var coverImage: UIImage?
+    var coverImageURL: URL?
+    var coverUploadState: ImageUploadOverlay.UploadState = .idle
+
     var isDraft: Bool = false
     var isPublishing: Bool = false
     var publishError: String?
@@ -43,7 +48,7 @@ final class CreateGatheringViewModel {
             description: descriptionText,
             templateType: templateTypeFromTemplate,
             emoji: selectedTemplate?.emoji ?? "🎉",
-            imageURL: nil,
+            imageURL: coverImageURL,
             city: "",
             school: nil,
             locationName: locationName,
@@ -87,7 +92,43 @@ final class CreateGatheringViewModel {
         self.container = container
     }
 
-    // MARK: - Actions
+    // MARK: - Cover Image Upload
+
+    func selectCoverImage(_ image: UIImage) {
+        coverImage = image
+        Task { await uploadCoverImage(image) }
+    }
+
+    private func uploadCoverImage(_ image: UIImage) async {
+        coverUploadState = .uploading
+        do {
+            let userId = "current-user" // In production: auth.uid()
+            let filename = "\(UUID().uuidString).jpg"
+            let path = "\(userId)/\(filename)"
+
+            let result = try await container.storageService.uploadImage(
+                image,
+                bucket: .gatheringImages,
+                path: path
+            )
+            coverImageURL = result.publicURL
+            coverUploadState = .success
+
+            // Reset to idle after showing success briefly
+            try? await Task.sleep(for: .seconds(1.5))
+            coverUploadState = .idle
+        } catch {
+            coverUploadState = .error("Upload failed")
+        }
+    }
+
+    func removeCoverImage() {
+        coverImage = nil
+        coverImageURL = nil
+        coverUploadState = .idle
+    }
+
+    // MARK: - Template Selection
 
     func selectTemplate(_ template: HostingTemplate) {
         selectedTemplate = template
@@ -97,6 +138,8 @@ final class CreateGatheringViewModel {
         selectedVibe = template.defaultVibe
         selectedTags = Set(template.defaultTags)
     }
+
+    // MARK: - Validation
 
     @discardableResult
     func validateForm() -> Bool {
@@ -120,6 +163,8 @@ final class CreateGatheringViewModel {
         return titleError == nil && locationError == nil && dateError == nil
     }
 
+    // MARK: - Publish
+
     func publish() async {
         guard validateForm() else { return }
 
@@ -139,6 +184,5 @@ final class CreateGatheringViewModel {
 
     func saveDraft() {
         isDraft = true
-        // In production: persist to local storage or API
     }
 }

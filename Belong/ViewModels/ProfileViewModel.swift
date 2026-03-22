@@ -9,6 +9,7 @@ enum ProfileTab: String, CaseIterable {
 final class ProfileViewModel {
     // MARK: - Dependencies
     private let userService: any UserServiceProtocol
+    var storageService: (any StorageServiceProtocol)?
 
     // MARK: - State
     var user: User?
@@ -24,6 +25,12 @@ final class ProfileViewModel {
     var isLoading = false
     var error: String?
     var selectedProfileTab: ProfileTab = .posts
+
+    // Image upload states
+    var avatarUploadState: ImageUploadOverlay.UploadState = .idle
+    var backgroundUploadState: ImageUploadOverlay.UploadState = .idle
+    var selectedAvatarImage: UIImage?
+    var selectedBackgroundImage: UIImage?
 
     init(userService: any UserServiceProtocol) {
         self.userService = userService
@@ -126,6 +133,54 @@ final class ProfileViewModel {
             browseHistory = []
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - Avatar Upload
+
+    func uploadAvatar(_ image: UIImage) {
+        selectedAvatarImage = image
+        Task { await performAvatarUpload(image) }
+    }
+
+    private func performAvatarUpload(_ image: UIImage) async {
+        guard let storage = storageService, let userId = user?.id else { return }
+        avatarUploadState = .uploading
+        do {
+            let path = "\(userId)/avatar.jpg"
+            let result = try await storage.uploadImage(image, bucket: .avatars, path: path)
+            // Update user profile with new avatar URL
+            try await userService.updateProfile(["avatar_url": result.publicURL.absoluteString])
+            user?.avatarURL = result.publicURL
+            avatarUploadState = .success
+            try? await Task.sleep(for: .seconds(1.5))
+            avatarUploadState = .idle
+        } catch {
+            avatarUploadState = .error("Upload failed")
+        }
+    }
+
+    // MARK: - Background Upload
+
+    func uploadBackground(_ image: UIImage) {
+        selectedBackgroundImage = image
+        Task { await performBackgroundUpload(image) }
+    }
+
+    private func performBackgroundUpload(_ image: UIImage) async {
+        guard let storage = storageService, let userId = user?.id else { return }
+        backgroundUploadState = .uploading
+        do {
+            let path = "\(userId)/background.jpg"
+            let result = try await storage.uploadImage(image, bucket: .profileBackgrounds, path: path)
+            // Update user profile with new background URL
+            try await userService.updateProfile(["profile_background_url": result.publicURL.absoluteString])
+            user?.profileBackgroundURL = result.publicURL
+            backgroundUploadState = .success
+            try? await Task.sleep(for: .seconds(1.5))
+            backgroundUploadState = .idle
+        } catch {
+            backgroundUploadState = .error("Upload failed")
         }
     }
 

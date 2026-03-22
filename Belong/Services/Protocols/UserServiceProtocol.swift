@@ -4,6 +4,8 @@ protocol UserServiceProtocol: Sendable {
     func fetchMyProfile() async throws -> User
     func fetchProfile(userId: String) async throws -> User
     func updateProfile(displayName: String?, bio: String?, city: String?, school: String?) async throws -> User
+    /// Generic field update for profile (avatar_url, profile_background_url, etc.)
+    func updateProfile(_ fields: [String: String]) async throws
     func updateAvatar(imageData: Data) async throws -> URL
     func updateTags(_ tags: [UserTag]) async throws
     func checkUsernameAvailability(_ username: String) async throws -> Bool

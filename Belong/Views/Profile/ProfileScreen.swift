@@ -17,7 +17,9 @@ struct ProfileScreen: View {
         .background(BelongColor.background)
         .task {
             if viewModel == nil {
-                viewModel = ProfileViewModel(userService: container.userService)
+                let vm = ProfileViewModel(userService: container.userService)
+                vm.storageService = container.storageService
+                viewModel = vm
             }
             await viewModel?.loadProfile()
             await viewModel?.loadMyPosts()

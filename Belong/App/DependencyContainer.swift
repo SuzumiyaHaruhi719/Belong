@@ -8,6 +8,7 @@ final class DependencyContainer {
     let chatService: any ChatServiceProtocol
     let userService: any UserServiceProtocol
     let notificationService: any NotificationServiceProtocol
+    let storageService: any StorageServiceProtocol
 
     init(
         authService: any AuthServiceProtocol = MockAuthService(),
@@ -15,7 +16,8 @@ final class DependencyContainer {
         postService: any PostServiceProtocol = MockPostService(),
         chatService: any ChatServiceProtocol = MockChatService(),
         userService: any UserServiceProtocol = MockUserService(),
-        notificationService: any NotificationServiceProtocol = MockNotificationService()
+        notificationService: any NotificationServiceProtocol = MockNotificationService(),
+        storageService: any StorageServiceProtocol = MockStorageService()
     ) {
         self.authService = authService
         self.gatheringService = gatheringService
@@ -23,5 +25,6 @@ final class DependencyContainer {
         self.chatService = chatService
         self.userService = userService
         self.notificationService = notificationService
+        self.storageService = storageService
     }
 }

@@ -40,6 +40,11 @@ final class MockUserService: UserServiceProtocol {
         }
     }
 
+    nonisolated func updateProfile(_ fields: [String: String]) async throws {
+        try await Task.sleep(for: .milliseconds(500))
+        // In production: PATCH /api/users/me with field updates
+    }
+
     nonisolated func updateAvatar(imageData: Data) async throws -> URL {
         try await Task.sleep(for: .milliseconds(800))
         return URL(string: "https://picsum.photos/200")!
