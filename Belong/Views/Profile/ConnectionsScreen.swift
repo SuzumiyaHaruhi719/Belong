@@ -147,34 +147,50 @@ private struct ConnectionUserRow: View {
     let user: User
     let tab: ConnectionsTab
     let viewModel: ProfileViewModel
+    @State private var actionDone = false
+    @State private var isProcessing = false
 
     private var trailingTitle: String {
+        if actionDone {
+            switch tab {
+            case .followers: return "Following"
+            case .following: return "Unfollowed"
+            case .mutuals: return "Message"
+            }
+        }
         switch tab {
-        case .followers: "Follow"
-        case .following: "Unfollow"
-        case .mutuals: "Message"
+        case .followers: return "Follow"
+        case .following: return "Unfollow"
+        case .mutuals: return "Message"
         }
     }
 
     var body: some View {
-        UserRow(
-            avatarEmoji: "👤",
-            name: user.displayName,
-            subtitle: "@\(user.username)",
-            trailingActionTitle: trailingTitle,
-            onTrailingAction: {
-                Task {
-                    switch tab {
-                    case .followers:
-                        await viewModel.followUser(user.id)
-                    case .following:
-                        await viewModel.unfollowUser(user.id)
-                    case .mutuals:
-                        break // Navigate to message
+        NavigationLink(value: ProfileRoute.userProfile(user.id)) {
+            UserRow(
+                avatarEmoji: "👤",
+                name: user.displayName,
+                subtitle: "@\(user.username)",
+                trailingActionTitle: isProcessing ? "..." : trailingTitle,
+                onTrailingAction: {
+                    guard !isProcessing, !actionDone else { return }
+                    isProcessing = true
+                    Task {
+                        switch tab {
+                        case .followers:
+                            await viewModel.followUser(user.id)
+                        case .following:
+                            await viewModel.unfollowUser(user.id)
+                        case .mutuals:
+                            break
+                        }
+                        actionDone = true
+                        isProcessing = false
                     }
                 }
-            }
-        )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

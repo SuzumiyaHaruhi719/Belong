@@ -90,8 +90,11 @@ struct MessageBubbleIncoming: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: Spacing.sm) {
-            AvatarView(emoji: message.senderAvatarEmoji, size: .small)
-                .frame(width: 28, height: 28)
+            NavigationLink(value: ProfileRoute.userProfile(message.senderId)) {
+                AvatarView(emoji: message.senderAvatarEmoji, size: .small)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(message.senderName)
