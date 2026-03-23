@@ -6,6 +6,7 @@ import SwiftUI
 struct RootView: View {
     @State private var appState = AppState()
     @State private var deps = DependencyContainer()
+    @State private var bannerManager = InAppBannerManager()
 
     var body: some View {
         Group {
@@ -16,10 +17,12 @@ struct RootView: View {
                 OnboardingFlow()
             case .authenticated:
                 MainTabView()
+                    .inAppBannerOverlay()
             }
         }
         .environment(appState)
         .environment(deps)
+        .environment(bannerManager)
         .task { await appState.checkAuth() }
     }
 }

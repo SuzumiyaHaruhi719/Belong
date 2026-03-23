@@ -4,6 +4,7 @@ struct ChatDetailScreen: View {
     let conversation: Conversation
     @Environment(DependencyContainer.self) private var container
     @Environment(AppState.self) private var appState
+    @Environment(InAppBannerManager.self) private var bannerManager
     @State private var viewModel: ChatDetailViewModel?
 
     /// When true, hides DM gating (used by GroupChatScreen wrapper).
@@ -35,7 +36,11 @@ struct ChatDetailScreen: View {
                 }
             }
         }
+        .onAppear {
+            bannerManager.activeConversationId = conversation.id
+        }
         .onDisappear {
+            bannerManager.activeConversationId = nil
             Task { await viewModel?.unsubscribe() }
         }
     }
