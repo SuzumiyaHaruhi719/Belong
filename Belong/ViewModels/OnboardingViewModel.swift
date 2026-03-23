@@ -48,6 +48,10 @@ final class OnboardingViewModel {
     var isRegistering = false
     var isLoggingIn = false
     var isSubmittingTags = false
+    var registerError: String?
+
+    // MARK: - Registered User (set after successful registration)
+    var registeredUser: User?
 
     // MARK: - OTP Timer
     var otpCountdown = 0
@@ -145,10 +149,17 @@ final class OnboardingViewModel {
             let success = try await deps.authService.verifyOTP(email: email, code: otpCode)
             otpVerified = success
             if !success {
-                otpError = "Invalid code. Please try again."
+                otpError = "Invalid or expired code. Please check and try again."
             }
         } catch {
-            otpError = "Verification failed. Try again."
+            let msg = error.localizedDescription.lowercased()
+            if msg.contains("expired") || msg.contains("token") {
+                otpError = "Code expired. Tap Resend to get a new code."
+            } else if msg.contains("network") || msg.contains("connection") {
+                otpError = "Network error. Check your connection and try again."
+            } else {
+                otpError = "Verification failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -215,6 +226,7 @@ final class OnboardingViewModel {
 
     func register() async -> User? {
         isRegistering = true
+        registerError = nil
         defer { isRegistering = false }
         do {
             let user = try await deps.authService.register(
@@ -222,8 +234,10 @@ final class OnboardingViewModel {
                 password: password,
                 username: username
             )
+            registeredUser = user
             return user
         } catch {
+            registerError = error.localizedDescription
             return nil
         }
     }

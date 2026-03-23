@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct OnboardingCompleteScreen: View {
     @Environment(AppState.self) private var appState
@@ -72,30 +73,34 @@ struct OnboardingCompleteAction: View {
             style: .primary,
             isFullWidth: true
         ) {
-            let user = User(
-                id: UUID().uuidString,
-                email: viewModel.email,
-                username: viewModel.username,
-                displayName: viewModel.displayName.isEmpty ? viewModel.username : viewModel.displayName,
-                avatarURL: nil,
-                defaultAvatarId: nil,
-                bio: "",
-                city: viewModel.selectedCity,
-                school: viewModel.selectedSchool,
-                appLanguage: viewModel.selectedLanguage,
-                privacyProfile: .publicProfile,
-                privacyDM: .everyone,
-                notificationsEnabled: true,
-                followerCount: 0,
-                followingCount: 0,
-                mutualCount: 0,
-                gatheringsAttended: 0,
-                gatheringsHosted: 0,
-                postCount: 0,
-                createdAt: Date(),
-                lastActiveAt: Date()
-            )
-            appState.completeOnboarding(user: user)
+            Task {
+                // Use the real registered user from Supabase auth
+                if let user = viewModel.registeredUser {
+                    appState.completeOnboarding(user: user)
+                } else if let userId = SupabaseManager.shared.currentUserId {
+                    // Fallback: fetch from database using real auth ID
+                    if let rows: [DBUser] = try? await SupabaseManager.shared.client.from("users")
+                        .select().eq("id", value: userId).limit(1).execute().value,
+                       let row = rows.first {
+                        appState.completeOnboarding(user: mapUserRow(row))
+                    } else {
+                        // Last resort: local user with real auth ID
+                        let user = User(
+                            id: userId, email: viewModel.email, username: viewModel.username,
+                            displayName: viewModel.displayName.isEmpty ? viewModel.username : viewModel.displayName,
+                            avatarURL: nil, defaultAvatarId: nil, bio: "",
+                            city: viewModel.selectedCity, school: viewModel.selectedSchool,
+                            appLanguage: viewModel.selectedLanguage,
+                            privacyProfile: .publicProfile, privacyDM: .mutualOnly,
+                            notificationsEnabled: true,
+                            followerCount: 0, followingCount: 0, mutualCount: 0,
+                            gatheringsAttended: 0, gatheringsHosted: 0, postCount: 0,
+                            createdAt: Date(), lastActiveAt: Date()
+                        )
+                        appState.completeOnboarding(user: user)
+                    }
+                }
+            }
         }
     }
 }
