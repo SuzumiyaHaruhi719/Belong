@@ -124,11 +124,13 @@ struct GatheringsFeedEmptyContent: View {
     var body: some View {
         EmptyStateView(
             icon: "calendar",
-            title: "No gatherings yet \u{1F4C5}",
-            message: "No gatherings in your area yet. Check back soon or host one yourself!"
+            title: "No gatherings yet",
+            message: "Nothing happening nearby right now. You could be the first to host one.",
+            ctaTitle: "Host a gathering",
+            onCTA: {}
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, Spacing.xxxxl)
+        .padding(.top, Spacing.xxxl)
     }
 }
 
@@ -198,55 +200,54 @@ struct GatheringsFeedLoadedContent: View {
 }
 
 // MARK: - Welcome Greeting
-// UX: Personal greeting builds warmth. "for you" in accent color draws
-// attention to the personalized pick. Tag explanation builds trust in
-// the recommendation — users understand WHY they see this gathering.
+// Editorial header: wordmark + personal greeting. No AI-style "Here's
+// a curated pick for you". Instead, quieter trust signals.
 
 private struct WelcomeGreeting: View {
     let name: String?
     let matchingTags: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            // App wordmark (moved here from toolbar so there's no nav bar)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            // Wordmark — smaller than welcome screen, functions as page header
             Text("Belong")
-                .font(BelongFont.display(28))
-                .foregroundStyle(BelongColor.textPrimary)
-                .padding(.bottom, Spacing.xs)
-
-            // "Welcome, Mai!"
-            (Text("Welcome, ")
-                .font(BelongFont.h1())
-                .foregroundStyle(BelongColor.textPrimary)
-            + Text(name ?? "friend")
-                .font(BelongFont.h1())
+                .font(BelongFont.display(24))
                 .foregroundStyle(BelongColor.primary)
-            + Text("!")
+
+            // Greeting — warm but not chatty
+            Text(greetingText)
                 .font(BelongFont.h1())
-                .foregroundStyle(BelongColor.textPrimary))
+                .foregroundStyle(BelongColor.textPrimary)
+                .lineSpacing(2)
 
-            // "Here's a curated pick for you"
-            (Text("Here's a curated pick ")
-                .font(BelongFont.body())
-                .foregroundStyle(BelongColor.textSecondary)
-            + Text("for you")
-                .font(BelongFont.bodySemiBold())
-                .foregroundStyle(BelongColor.primary))
-
-            // Tag explanation
+            // Tag context — restrained, not "AI picked this for you"
             if !matchingTags.isEmpty {
-                Text("Based on \(matchingTags.prefix(3).joined(separator: ", "))")
+                Text(matchingTags.prefix(3).joined(separator: "  \u{00B7}  "))
                     .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textTertiary)
+                    .tracking(0.5)
             }
         }
+    }
+
+    private var greetingText: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let greeting: String
+        switch hour {
+        case 5..<12: greeting = "Good morning"
+        case 12..<17: greeting = "Good afternoon"
+        default: greeting = "Good evening"
+        }
+        if let name, !name.isEmpty {
+            return "\(greeting), \(name)"
+        }
+        return greeting
     }
 }
 
 // MARK: - Top Pick Section
-// UX: The top pick card has a prominent border + label to distinguish it
-// from regular feed cards. Join + Maybe buttons are directly on the card
-// so users can act without navigating to the detail screen first.
+// Elevated card with subtle border accent. No shouting "TOP PICK" badge —
+// the visual weight and placement already communicate priority.
 
 private struct TopPickSection: View {
     let gathering: Gathering
@@ -254,24 +255,18 @@ private struct TopPickSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            // Section label with accent line
-            HStack(spacing: Spacing.sm) {
-                Text("\u{2B50} TOP PICK")
-                    .font(BelongFont.captionMedium())
-                    .foregroundStyle(BelongColor.primary)
-                    .tracking(1)
+            // Section label — quiet, editorial
+            Text("Recommended for you")
+                .font(BelongFont.overline())
+                .foregroundStyle(BelongColor.textTertiary)
+                .tracking(1)
+                .textCase(.uppercase)
 
-                Rectangle()
-                    .fill(BelongColor.primary.opacity(0.3))
-                    .frame(height: 1)
-            }
-
-            // Card with border highlight
+            // Featured card
             NavigationLink(value: GatheringsRoute.detail(gathering)) {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Hero image area
-                    ZStack(alignment: .topLeading) {
-                        // Image or gradient
+                    // Hero image
+                    ZStack(alignment: .bottomLeading) {
                         if let url = gathering.imageURL {
                             AsyncImage(url: url) { phase in
                                 switch phase {
@@ -281,86 +276,68 @@ private struct TopPickSection: View {
                                     topPickGradient
                                 }
                             }
-                            .frame(height: 180)
+                            .frame(height: 200)
                             .clipped()
                         } else {
                             topPickGradient
-                                .frame(height: 180)
+                                .frame(height: 200)
                                 .overlay {
                                     Text(gathering.emoji)
-                                        .font(.system(size: 56))
+                                        .font(.system(size: 48))
                                 }
                         }
 
-                        // TOP PICK badge
-                        Text("TOP PICK")
-                            .font(.system(size: 11, weight: .bold))
-                            .tracking(0.5)
-                            .foregroundStyle(BelongColor.textOnPrimary)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(BelongColor.primary)
-                            .clipShape(Capsule())
-                            .padding(Spacing.md)
-
-                        // Spots badge top right
-                        VStack {
-                            Text(gathering.formattedSpots)
-                                .font(BelongFont.captionMedium())
-                                .foregroundStyle(BelongColor.textPrimary)
-                                .padding(.horizontal, Spacing.sm)
-                                .padding(.vertical, Spacing.xs)
-                                .background(.ultraThinMaterial)
-                                .clipShape(Capsule())
-                                .padding(Spacing.md)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-
-                    // Card body
-                    VStack(alignment: .leading, spacing: Spacing.sm) {
-                        // Tags
+                        // Tags on image — bottom left
                         HStack(spacing: Spacing.xs) {
                             ForEach(gathering.tags.prefix(3), id: \.self) { tag in
                                 Text(tag)
                                     .font(BelongFont.captionMedium())
-                                    .foregroundStyle(BelongColor.primary)
+                                    .foregroundStyle(.white)
                                     .padding(.horizontal, Spacing.sm)
-                                    .padding(.vertical, 3)
-                                    .background(BelongColor.surfaceSecondary)
+                                    .padding(.vertical, Spacing.xs)
+                                    .background(.black.opacity(0.35))
                                     .clipShape(Capsule())
                             }
                         }
+                        .padding(Spacing.md)
+                    }
 
-                        // Title
-                        HStack {
-                            Text(gathering.title)
-                                .font(BelongFont.h2())
-                                .foregroundStyle(BelongColor.textPrimary)
-                            if !gathering.emoji.isEmpty {
-                                Text(gathering.emoji)
-                            }
+                    // Card body — tighter spacing
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        Text(gathering.title)
+                            .font(BelongFont.h2())
+                            .foregroundStyle(BelongColor.textPrimary)
+                            .lineLimit(2)
+
+                        // Date + location — compact
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Label(gathering.startsAt.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()),
+                                  systemImage: "calendar")
+                            Label(gathering.locationName, systemImage: "mappin.and.ellipse")
+                                .lineLimit(1)
                         }
+                        .font(BelongFont.secondary())
+                        .foregroundStyle(BelongColor.textSecondary)
 
-                        // Date + location
-                        Label(gathering.startsAt.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()),
-                              systemImage: "calendar")
-                            .font(BelongFont.secondary())
-                            .foregroundStyle(BelongColor.textSecondary)
-
-                        Label(gathering.locationName, systemImage: "mappin.and.ellipse")
-                            .font(BelongFont.secondary())
-                            .foregroundStyle(BelongColor.textSecondary)
+                        // Spots remaining
+                        Text(gathering.formattedSpots)
+                            .font(BelongFont.captionMedium())
+                            .foregroundStyle(
+                                gathering.isFull ? BelongColor.error :
+                                gathering.spotsRemaining <= 3 ? BelongColor.warning :
+                                BelongColor.textTertiary
+                            )
                     }
                     .padding(Spacing.base)
                 }
                 .background(BelongColor.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Layout.radiusLg)
-                        .stroke(BelongColor.primary.opacity(0.3), lineWidth: 1.5)
+                .shadow(
+                    color: BelongShadow.level2.color,
+                    radius: BelongShadow.level2.radius,
+                    x: BelongShadow.level2.x,
+                    y: BelongShadow.level2.y
                 )
-                .shadow(color: Color.black.opacity(0.06), radius: 8, y: 2)
             }
             .buttonStyle(.plain)
         }
@@ -368,7 +345,7 @@ private struct TopPickSection: View {
 
     private var topPickGradient: some View {
         LinearGradient(
-            colors: [BelongColor.primary.opacity(0.2), BelongColor.surfaceSecondary],
+            colors: [BelongColor.primaryMuted, BelongColor.surfaceSecondary],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )

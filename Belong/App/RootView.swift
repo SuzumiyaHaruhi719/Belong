@@ -7,6 +7,7 @@ struct RootView: View {
     @State private var appState = AppState()
     @State private var deps = DependencyContainer()
     @State private var bannerManager = InAppBannerManager()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -24,6 +25,12 @@ struct RootView: View {
         .environment(deps)
         .environment(bannerManager)
         .task { await appState.checkAuth() }
+        .onChange(of: scenePhase) { _, newPhase in
+            bannerManager.isAppActive = (newPhase == .active)
+            if newPhase != .active {
+                bannerManager.dismissAll()
+            }
+        }
     }
 }
 

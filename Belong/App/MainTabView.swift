@@ -6,6 +6,7 @@ struct MainTabView: View {
     @Environment(AppState.self) private var appState
     @Environment(DependencyContainer.self) private var container
     @Environment(InAppBannerManager.self) private var bannerManager
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var state = appState
@@ -29,6 +30,27 @@ struct MainTabView: View {
             }
         }
         .tint(BelongColor.primary)
+        .onAppear {
+            // Warm tab bar appearance — parchment background, no harsh separator
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor(BelongColor.surface)
+            appearance.shadowColor = UIColor(BelongColor.divider)
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+
+            // Warm nav bar appearance
+            let navAppearance = UINavigationBarAppearance()
+            navAppearance.configureWithOpaqueBackground()
+            navAppearance.backgroundColor = UIColor(BelongColor.background)
+            navAppearance.shadowColor = UIColor(BelongColor.divider)
+            navAppearance.titleTextAttributes = [
+                .foregroundColor: UIColor(BelongColor.textPrimary),
+                .font: UIFont.systemFont(ofSize: 17, weight: .semibold)
+            ]
+            UINavigationBar.appearance().standardAppearance = navAppearance
+            UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
+        }
         .onChange(of: appState.selectedTab) { oldTab, newTab in
             if newTab == .create {
                 appState.selectedTab = oldTab
@@ -53,6 +75,11 @@ struct MainTabView: View {
         .task(id: "globalChatListener") {
             await listenForNewMessages()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await loadUnreadBadge() }
+            }
+        }
     }
 
     private func loadUnreadBadge() async {
@@ -66,28 +93,55 @@ struct MainTabView: View {
 
     /// Global realtime listener: increments badge and shows in-app banner
     /// when a new message arrives from another user.
+    /// Auto-reconnects if the WebSocket disconnects.
     private func listenForNewMessages() async {
         let myId = SupabaseManager.shared.currentUserId ?? ""
         guard !myId.isEmpty else { return }
 
-        let channel = SupabaseManager.shared.client.realtimeV2.channel("global-messages")
-        let insertions = channel.postgresChange(InsertAction.self, table: "messages")
-        await channel.subscribe()
+        var senderCache: [String: (name: String, emoji: String, avatarURL: URL?)] = [:]
+        var conversationCache: [String: Conversation] = [:]
 
-        for await insert in insertions {
-            let senderId = (try? insert.record["sender_id"]?.value as? String) ?? ""
-            let content = (try? insert.record["content"]?.value as? String) ?? ""
-            let conversationId = (try? insert.record["conversation_id"]?.value as? String) ?? ""
+        // Auto-reconnect loop: restarts channel if WebSocket disconnects
+        while !Task.isCancelled {
+            let channelId = UUID().uuidString.prefix(8)
+            let channel = SupabaseManager.shared.client.realtimeV2.channel("global-messages-\(channelId)")
+            let insertions = channel.postgresChange(InsertAction.self, table: "messages")
+            await channel.subscribe()
 
-            print("[Banner] Realtime insert: sender=\(senderId) conv=\(conversationId) content=\(content.prefix(30))")
-            if senderId != myId {
-                // Bump badge
+            for await insert in insertions {
+                guard !Task.isCancelled else { break }
+
+                let senderId = (try? insert.record["sender_id"]?.value as? String) ?? ""
+                let content = (try? insert.record["content"]?.value as? String) ?? ""
+                let conversationId = (try? insert.record["conversation_id"]?.value as? String) ?? ""
+
+                guard senderId != myId else { continue }
+
+                // Always bump badge (visible when user returns from background)
                 appState.unreadChatCount += 1
-                print("[Banner] Showing banner for message from \(senderId)")
 
-                // Fetch sender info for banner
-                let senderInfo = await fetchSenderInfo(senderId: senderId)
-                let conv = await fetchConversationForBanner(conversationId: conversationId)
+                // Only build and show banner if app is in foreground
+                guard bannerManager.isAppActive else { continue }
+
+                // Resolve sender info (cached)
+                let senderInfo: (name: String, emoji: String, avatarURL: URL?)
+                if let cached = senderCache[senderId] {
+                    senderInfo = cached
+                } else {
+                    let fetched = await fetchSenderInfo(senderId: senderId)
+                    senderCache[senderId] = fetched
+                    senderInfo = fetched
+                }
+
+                // Resolve conversation (cached)
+                let conv: Conversation?
+                if let cached = conversationCache[conversationId] {
+                    conv = cached
+                } else {
+                    let fetched = await fetchConversationForBanner(conversationId: conversationId)
+                    if let fetched { conversationCache[conversationId] = fetched }
+                    conv = fetched
+                }
 
                 let banner = InAppBanner(
                     senderName: senderInfo.name,
@@ -101,6 +155,13 @@ struct MainTabView: View {
                 )
                 bannerManager.show(banner)
             }
+
+            // Clean up disconnected channel
+            await SupabaseManager.shared.client.realtimeV2.removeChannel(channel)
+
+            guard !Task.isCancelled else { break }
+            // Brief delay before reconnecting
+            try? await Task.sleep(for: .seconds(2))
         }
     }
 
@@ -176,6 +237,7 @@ struct GatheringsTabRoot: View {
 }
 
 struct PostsTabRoot: View {
+    @Environment(DependencyContainer.self) private var container
     var body: some View {
         NavigationStack {
             PostsFeedScreen()

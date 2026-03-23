@@ -6,6 +6,7 @@ struct GatheringSearchScreen: View {
     @State private var results: [Gathering] = []
     @State private var isSearching = false
     @State private var hasSearched = false
+    @State private var error: String?
     private let container: DependencyContainer
 
     init(container: DependencyContainer) {
@@ -47,6 +48,10 @@ struct GatheringSearchScreen: View {
             // Content
             if isSearching {
                 GatheringSearchLoadingContent()
+            } else if let error {
+                ErrorStateView(message: error, onRetry: {
+                    Task { await performSearch(query: searchText) }
+                })
             } else if !hasSearched {
                 GatheringSearchInitialContent()
             } else if filteredResults.isEmpty {
@@ -74,11 +79,13 @@ struct GatheringSearchScreen: View {
             return
         }
         isSearching = true
+        error = nil
         do {
             results = try await container.gatheringService.search(query: trimmed, city: "Melbourne")
             hasSearched = true
             selectedFilter = "All"
         } catch {
+            self.error = error.localizedDescription
             results = []
             hasSearched = true
         }
@@ -92,11 +99,11 @@ struct GatheringSearchInitialContent: View {
     var body: some View {
         EmptyStateView(
             icon: "magnifyingglass",
-            title: "Discover gatherings",
-            message: "Search for gatherings by name, tag, or location"
+            title: "Find your next gathering",
+            message: "Search by name, cultural tag, or neighborhood."
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, Spacing.xxxxl)
+        .padding(.top, Spacing.xxxl)
     }
 }
 
@@ -120,11 +127,11 @@ struct GatheringSearchNoResultsContent: View {
     var body: some View {
         EmptyStateView(
             icon: "magnifyingglass",
-            title: "No results",
-            message: "No gatherings match your search"
+            title: "No matches",
+            message: "Try a different keyword or broaden your search."
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, Spacing.xxxxl)
+        .padding(.top, Spacing.xxxl)
     }
 }
 

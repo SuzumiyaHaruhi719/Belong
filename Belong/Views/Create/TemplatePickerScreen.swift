@@ -4,7 +4,9 @@ struct TemplatePickerScreen: View {
     let viewModel: CreateGatheringViewModel
     @Binding var path: NavigationPath
     @State private var templates: [HostingTemplate] = []
+    @State private var drafts: [Gathering] = []
     @State private var isLoading = true
+    @State private var isLoadingDrafts = true
 
     private let columns = [
         GridItem(.flexible(), spacing: Spacing.base),
@@ -14,6 +16,23 @@ struct TemplatePickerScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Spacing.lg) {
+                // My Drafts section (shown only when drafts exist)
+                if !drafts.isEmpty {
+                    DraftPickerSection(
+                        drafts: drafts,
+                        onResume: { draft in
+                            viewModel.loadDraft(draft)
+                            // Find matching template to pass to customize screen
+                            let template = templates.first { $0.id.contains(draft.templateType.rawValue) }
+                                ?? templates.first
+                            path.append(CreateRoute.customizeGathering(template ?? SampleData.hostingTemplates[0]))
+                        },
+                        onDelete: { draft in
+                            Task { await deleteDraft(draft) }
+                        }
+                    )
+                }
+
                 TemplatePickerHeader()
 
                 if isLoading {
@@ -34,7 +53,9 @@ struct TemplatePickerScreen: View {
         }
         .background(BelongColor.background)
         .task {
-            await loadTemplates()
+            async let templatesTask: () = loadTemplates()
+            async let draftsTask: () = loadDrafts()
+            _ = await (templatesTask, draftsTask)
         }
     }
 
@@ -43,10 +64,104 @@ struct TemplatePickerScreen: View {
         do {
             templates = try await viewModel.container.gatheringService.fetchTemplates()
         } catch {
-            // Fallback to empty on failure
             templates = []
         }
         isLoading = false
+    }
+
+    private func loadDrafts() async {
+        isLoadingDrafts = true
+        do {
+            drafts = try await viewModel.container.gatheringService.fetchDrafts()
+        } catch {
+            drafts = []
+        }
+        isLoadingDrafts = false
+    }
+
+    private func deleteDraft(_ draft: Gathering) async {
+        do {
+            try await viewModel.container.gatheringService.deleteDraft(gatheringId: draft.id)
+            drafts.removeAll { $0.id == draft.id }
+        } catch {
+            // Silent failure — draft stays in list
+        }
+    }
+}
+
+// MARK: - Draft Picker Section
+
+private struct DraftPickerSection: View {
+    let drafts: [Gathering]
+    let onResume: (Gathering) -> Void
+    let onDelete: (Gathering) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(BelongColor.primary)
+                Text("My Drafts")
+                    .font(BelongFont.h3())
+                    .foregroundStyle(BelongColor.textPrimary)
+            }
+
+            ForEach(drafts) { draft in
+                DraftRow(draft: draft, onResume: onResume, onDelete: onDelete)
+            }
+        }
+    }
+}
+
+private struct DraftRow: View {
+    let draft: Gathering
+    let onResume: (Gathering) -> Void
+    let onDelete: (Gathering) -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(draft.title.isEmpty ? "Untitled draft" : draft.title)
+                    .font(BelongFont.bodyMedium())
+                    .foregroundStyle(BelongColor.textPrimary)
+                    .lineLimit(1)
+
+                Text(draft.startsAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+
+            Spacer()
+
+            Button {
+                onDelete(draft)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 14))
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                onResume(draft)
+            } label: {
+                Text("Resume")
+                    .font(BelongFont.captionMedium())
+                    .foregroundStyle(BelongColor.textOnPrimary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(BelongColor.primary)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(Spacing.md)
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(BelongColor.primary.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 

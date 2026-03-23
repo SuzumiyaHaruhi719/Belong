@@ -139,6 +139,13 @@ final class OnboardingViewModel {
         otpError = nil
         defer { isSendingOTP = false }
         do {
+            // Guard: prevent fully-registered users from going through sign-up
+            // (which would overwrite their password and username)
+            let (available, _) = try await deps.authService.checkEmail(email)
+            if !available {
+                emailError = "This email is already registered. Try logging in instead."
+                return
+            }
             try await deps.authService.sendOTP(to: email)
             startOTPCountdown()
         } catch {

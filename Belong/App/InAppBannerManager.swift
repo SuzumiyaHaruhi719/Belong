@@ -30,34 +30,44 @@ final class InAppBannerManager {
     /// Conversation the user is currently viewing (set by ChatDetailScreen)
     var activeConversationId: String?
 
+    /// Whether the app is in the foreground. Set by RootView via scenePhase.
+    var isAppActive = true
+
     private var dismissTask: Task<Void, Never>?
+    private var isDismissing = false
     private var pendingBanners: [InAppBanner] = []
     private let autoDismissDelay: TimeInterval = 4.0
 
     func show(_ banner: InAppBanner) {
+        // Don't show banner if app is not in foreground
+        guard isAppActive else { return }
+
         // Don't show banner if user is already in that conversation
         if banner.conversationId == activeConversationId {
             return
         }
 
-        // If a banner is currently showing from the same sender in same conversation,
-        // update it rather than queuing
+        // If a banner is currently showing for the same conversation,
+        // update it with the latest message (any sender)
         if let current = currentBanner,
-           current.conversationId == banner.conversationId,
-           current.senderId == banner.senderId {
+           current.conversationId == banner.conversationId {
             dismissTask?.cancel()
             currentBanner = banner
             scheduleAutoDismiss()
             return
         }
 
-        // If a banner is already showing, queue this one
-        if isVisible {
-            // Keep queue small — only last 3
-            if pendingBanners.count >= 3 {
+        // If a banner is already showing or mid-dismiss, queue this one
+        if isVisible || isDismissing {
+            // Coalesce: replace existing queued banner for same conversation
+            if let idx = pendingBanners.firstIndex(where: { $0.conversationId == banner.conversationId }) {
+                pendingBanners[idx] = banner
+            } else if pendingBanners.count >= 5 {
                 pendingBanners.removeFirst()
+                pendingBanners.append(banner)
+            } else {
+                pendingBanners.append(banner)
             }
-            pendingBanners.append(banner)
             return
         }
 
@@ -66,6 +76,8 @@ final class InAppBannerManager {
     }
 
     func dismiss() {
+        guard !isDismissing else { return }
+        isDismissing = true
         dismissTask?.cancel()
         withAnimation(.spring(duration: 0.3)) {
             isVisible = false
@@ -74,6 +86,7 @@ final class InAppBannerManager {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
             currentBanner = nil
+            isDismissing = false
             showNextIfAvailable()
         }
     }
@@ -81,12 +94,14 @@ final class InAppBannerManager {
     func dismissAll() {
         dismissTask?.cancel()
         pendingBanners.removeAll()
+        isDismissing = true
         withAnimation(.spring(duration: 0.3)) {
             isVisible = false
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
             currentBanner = nil
+            isDismissing = false
         }
     }
 

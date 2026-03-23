@@ -78,16 +78,31 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
             gathering.isBookmarked = !saves.isEmpty
         }
 
+        // Populate face pile: fetch first 5 joined member user info
+        let joinedMembers = members.filter { $0.status == "joined" }
+        let memberUserIds = joinedMembers.prefix(5).compactMap(\.userId)
+        if !memberUserIds.isEmpty {
+            let memberUsers: [DBUser] = (try? await manager.client.from("users")
+                .select("id, display_name, username, avatar_url")
+                .in("id", values: memberUserIds)
+                .execute()
+                .value) ?? []
+            gathering.attendeeAvatars = memberUsers.compactMap { user in
+                user.avatarUrl ?? user.displayName?.first.map(String.init) ?? "👤"
+            }
+        }
+
         // Fetch host info
         if let hostRows: [DBUser] = try? await manager.client.from("users")
-            .select("display_name, username, avatar_url, default_avatar_id")
+            .select("id, display_name, username, avatar_url, default_avatar_id")
             .eq("id", value: row.hostId ?? "")
             .limit(1)
             .execute()
             .value,
            let host = hostRows.first {
             gathering.hostName = host.displayName ?? host.username ?? ""
-            gathering.hostAvatarEmoji = "🙂"
+            gathering.hostAvatarURL = host.avatarUrl.flatMap { URL(string: $0) }
+            gathering.hostAvatarEmoji = host.avatarUrl != nil ? "" : "🙂"
         }
 
         // Fetch average host rating from feedback on host's gatherings
@@ -273,10 +288,16 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
     }
 
     func search(query: String, city: String) async throws -> [Gathering] {
+        // Sanitize query to prevent PostgREST filter injection
+        let sanitized = query
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: "(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+            .replacingOccurrences(of: ".", with: "")
         let rows: [DBGathering] = try await manager.client.from("gatherings")
             .select()
             .eq("is_draft", value: false)
-            .or("title.ilike.%\(query)%,description.ilike.%\(query)%")
+            .or("title.ilike.%\(sanitized)%,description.ilike.%\(sanitized)%")
             .order("starts_at", ascending: true)
             .limit(30)
             .execute()
@@ -318,6 +339,25 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
         return try await fetchDetail(id: gatheringId)
     }
 
+    func deleteDraft(gatheringId: String) async throws {
+        let myId = try manager.requireUserId()
+        // Only delete if it's actually a draft owned by the current user
+        try await manager.client.from("gathering_tags")
+            .delete()
+            .eq("gathering_id", value: gatheringId)
+            .execute()
+        try await manager.client.from("gathering_members")
+            .delete()
+            .eq("gathering_id", value: gatheringId)
+            .execute()
+        try await manager.client.from("gatherings")
+            .delete()
+            .eq("id", value: gatheringId)
+            .eq("host_id", value: myId)
+            .eq("is_draft", value: true)
+            .execute()
+    }
+
     // MARK: - Helpers
 
     private func enrichGatherings(_ rows: [DBGathering]) async throws -> [Gathering] {
@@ -341,25 +381,34 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
             .value
         let membersByGathering = Dictionary(grouping: allMembers, by: { $0.gatheringId ?? "" })
 
-        // Batch-fetch host info
+        // Batch-fetch host info + member avatars
+        let allMemberUserIds = Array(Set(allMembers.compactMap(\.userId)))
         let hostIds = Array(Set(rows.compactMap(\.hostId)))
-        var hostMap: [String: DBUser] = [:]
-        if !hostIds.isEmpty {
-            let hosts: [DBUser] = try await manager.client.from("users")
+        let allUserIds = Array(Set(hostIds + allMemberUserIds))
+        var userMap: [String: DBUser] = [:]
+        if !allUserIds.isEmpty {
+            let users: [DBUser] = try await manager.client.from("users")
                 .select("id, display_name, username, avatar_url")
-                .in("id", values: hostIds)
+                .in("id", values: allUserIds)
                 .execute()
                 .value
-            hostMap = Dictionary(uniqueKeysWithValues: hosts.map { ($0.id, $0) })
+            userMap = Dictionary(uniqueKeysWithValues: users.map { ($0.id, $0) })
         }
 
         return rows.map { row in
             var g = mapDBGathering(row)
             let gid = row.id ?? ""
             g.tags = (tagsByGathering[gid] ?? []).map(\.tagValue)
-            g.attendeeCount = (membersByGathering[gid] ?? []).count
-            if let host = hostMap[row.hostId ?? ""] {
+            let members = membersByGathering[gid] ?? []
+            g.attendeeCount = members.count
+            // Populate face pile with first 5 member avatar URLs
+            g.attendeeAvatars = members.prefix(5).compactMap { member in
+                guard let uid = member.userId, let user = userMap[uid] else { return nil }
+                return user.avatarUrl ?? user.displayName?.first.map(String.init) ?? "👤"
+            }
+            if let host = userMap[row.hostId ?? ""] {
                 g.hostName = host.displayName ?? host.username ?? ""
+                g.hostAvatarEmoji = host.avatarUrl != nil ? "" : "🙂"
             }
             return g
         }

@@ -42,35 +42,35 @@ final class SupabaseChatService: ChatServiceProtocol {
             .value
         let userMap = Dictionary(uniqueKeysWithValues: users.map { ($0.id, $0) })
 
-        // Fetch last message for each conversation
+        // Batch-fetch all recent messages for these conversations (sorted desc)
+        let allMessages: [DBMessage] = try await manager.client.from("messages")
+            .select()
+            .in("conversation_id", values: convIds)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+
+        // Extract last message per conversation
         var lastMessages: [String: DBMessage] = [:]
-        for convId in convIds {
-            let msgs: [DBMessage] = try await manager.client.from("messages")
-                .select()
-                .eq("conversation_id", value: convId)
-                .order("created_at", ascending: false)
-                .limit(1)
-                .execute()
-                .value
-            if let msg = msgs.first {
-                lastMessages[convId] = msg
+        for msg in allMessages {
+            let cid = msg.conversationId ?? ""
+            if lastMessages[cid] == nil {
+                lastMessages[cid] = msg
             }
         }
 
-        // Count unread messages per conversation
+        // Calculate unread counts from the batch-fetched messages
         var unreadCounts: [String: Int] = [:]
         for convId in convIds {
             let myMember = memberships.first { ($0.conversationId ?? "") == convId }
-            let lastRead = myMember?.lastReadAt
-            var query = manager.client.from("messages")
-                .select("id", head: false, count: .exact)
-                .eq("conversation_id", value: convId)
-                .neq("sender_id", value: myId)
-            if let lastRead {
-                query = query.gt("created_at", value: lastRead)
+            let lastReadStr = myMember?.lastReadAt
+            let lastReadDate = lastReadStr.map { parseSupabaseDate($0) }
+            let convMessages = allMessages.filter { ($0.conversationId ?? "") == convId && ($0.senderId ?? "") != myId }
+            if let lastReadDate {
+                unreadCounts[convId] = convMessages.filter { parseSupabaseDate($0.createdAt) > lastReadDate }.count
+            } else {
+                unreadCounts[convId] = convMessages.count
             }
-            let response = try await query.execute()
-            unreadCounts[convId] = response.count ?? 0
         }
 
         // Check mutual follows for DMs
@@ -171,10 +171,17 @@ final class SupabaseChatService: ChatServiceProtocol {
     }
 
     func sendMessage(conversationId: String, content: String?, imageURL: URL?, sharedPostId: String?) async throws -> Message {
+        // Determine message type so the RPC persists it correctly
+        let msgType: MessageType
+        if imageURL != nil { msgType = .image }
+        else if sharedPostId != nil { msgType = .sharedPost }
+        else { msgType = .text }
+
         let result: DBMessage = try await manager.client
             .rpc("send_dm_message", params: SendDmParams(
                 pConversationId: conversationId,
                 pContent: content,
+                pMessageType: msgType.rawValue,
                 pImageUrl: imageURL?.absoluteString,
                 pSharedPostId: sharedPostId
             ))
@@ -182,10 +189,6 @@ final class SupabaseChatService: ChatServiceProtocol {
             .value
 
         let myId = manager.currentUserId ?? ""
-        let msgType: MessageType
-        if imageURL != nil { msgType = .image }
-        else if sharedPostId != nil { msgType = .sharedPost }
-        else { msgType = .text }
 
         return Message(
             id: result.id ?? UUID().uuidString,
@@ -250,9 +253,15 @@ final class SupabaseChatService: ChatServiceProtocol {
     }
 
     func searchUsers(query: String) async throws -> [User] {
+        // Sanitize query to prevent PostgREST filter injection
+        let sanitized = query
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: "(", with: "")
+            .replacingOccurrences(of: ")", with: "")
+            .replacingOccurrences(of: ".", with: "")
         let rows: [DBUser] = try await manager.client.from("users")
             .select()
-            .or("username.ilike.%\(query)%,display_name.ilike.%\(query)%")
+            .or("username.ilike.%\(sanitized)%,display_name.ilike.%\(sanitized)%")
             .limit(20)
             .execute()
             .value

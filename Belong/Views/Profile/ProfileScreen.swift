@@ -20,11 +20,26 @@ struct ProfileScreen: View {
             if viewModel == nil {
                 let vm = ProfileViewModel(userService: container.userService)
                 vm.storageService = container.storageService
+                vm.gatheringService = container.gatheringService
+                vm.postService = container.postService
                 viewModel = vm
+                await vm.loadProfile()
+                await vm.loadMyPosts()
+                await vm.loadMyGatherings()
             }
-            await viewModel?.loadProfile()
-            await viewModel?.loadMyPosts()
-            await viewModel?.loadMyGatherings()
+        }
+        .onAppear {
+            // Refresh profile + content on re-appear (tab switch, navigation pop, after creating content)
+            guard let vm = viewModel, vm.user != nil else { return }
+            Task {
+                await vm.loadProfile()
+                // Sync fresh profile to AppState so other tabs see current data
+                if let freshUser = vm.user {
+                    appState.currentUser = freshUser
+                }
+                await vm.loadMyPosts()
+                await vm.loadMyGatherings()
+            }
         }
     }
 }
@@ -48,15 +63,7 @@ private struct ProfileScreenContent: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: ProfileRoute.settings) {
-                    Image(systemName: "gearshape")
-                        .foregroundStyle(BelongColor.textPrimary)
-                }
-                .accessibilityLabel("Settings")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -123,8 +130,9 @@ private struct ProfileScrollContent: View {
 private struct ProfileCoverBanner: View {
     let user: User
     @Bindable var viewModel: ProfileViewModel
-    private let bannerHeight: CGFloat = 150
-    private let avatarOverlap: CGFloat = 32
+    private let bannerHeight: CGFloat = 180
+    private let avatarSize: CGFloat = 80
+    private let avatarOverlap: CGFloat = 40
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -157,24 +165,54 @@ private struct ProfileCoverBanner: View {
                     // Upload overlay
                     ImageUploadOverlay(state: viewModel.backgroundUploadState)
 
-                    // Camera hint on banner
+                    // Bottom fade for readability
                     VStack {
+                        Spacer()
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.15)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 60)
+                    }
+
+                    // Camera hint (bottom-right of banner)
+                    VStack {
+                        Spacer()
                         HStack {
                             Spacer()
                             Image(systemName: "camera.fill")
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                                 .foregroundStyle(.white)
                                 .padding(6)
-                                .background(.black.opacity(0.4))
+                                .background(.black.opacity(0.35))
                                 .clipShape(Circle())
                                 .padding(Spacing.sm)
                         }
-                        Spacer()
                     }
                 }
                 .frame(height: bannerHeight)
             }
             .accessibilityLabel("Tap to change profile background")
+
+            // Settings gear — top right, overlaying banner
+            VStack {
+                HStack {
+                    Spacer()
+                    NavigationLink(value: ProfileRoute.settings) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.black.opacity(0.35))
+                            .clipShape(Circle())
+                    }
+                    .padding(.trailing, Spacing.md)
+                    .padding(.top, 52) // Below dynamic island / status bar
+                }
+                Spacer()
+            }
+            .frame(height: bannerHeight)
 
             // Avatar — tappable to upload photo
             ZStack(alignment: .bottomTrailing) {
@@ -185,7 +223,7 @@ private struct ProfileCoverBanner: View {
                         if let selectedAvatar = viewModel.selectedAvatarImage {
                             Image(uiImage: selectedAvatar)
                                 .resizable().scaledToFill()
-                                .frame(width: 68, height: 68)
+                                .frame(width: avatarSize, height: avatarSize)
                                 .clipShape(Circle())
                         } else {
                             AvatarView(
@@ -193,14 +231,14 @@ private struct ProfileCoverBanner: View {
                                 emoji: "👤",
                                 size: .xlarge
                             )
-                            .frame(width: 68, height: 68)
+                            .frame(width: avatarSize, height: avatarSize)
                         }
                     }
                     .background(BelongColor.background)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(BelongColor.background, lineWidth: 3))
+                    .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
                     .overlay {
-                        // Upload overlay on avatar
                         if case .uploading = viewModel.avatarUploadState {
                             Circle()
                                 .fill(.black.opacity(0.4))
@@ -214,11 +252,11 @@ private struct ProfileCoverBanner: View {
                 Image(systemName: "camera.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(BelongColor.textOnPrimary)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 24, height: 24)
                     .background(BelongColor.primary)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(BelongColor.background, lineWidth: 2))
-                    .allowsHitTesting(false) // Let the ImagePickerButton handle taps
+                    .allowsHitTesting(false)
             }
             .offset(y: avatarOverlap)
         }
@@ -226,15 +264,23 @@ private struct ProfileCoverBanner: View {
     }
 
     private var defaultGradient: some View {
-        LinearGradient(
-            colors: [
-                BelongColor.primary.opacity(0.35),
-                BelongColor.surfaceSecondary,
-                BelongColor.background
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.77, green: 0.48, blue: 0.35).opacity(0.6),
+                    Color(red: 0.83, green: 0.63, blue: 0.24).opacity(0.4),
+                    BelongColor.primary.opacity(0.25),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            // Subtle texture overlay for depth
+            LinearGradient(
+                colors: [.white.opacity(0.08), .clear, .black.opacity(0.05)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 }
 
@@ -304,9 +350,9 @@ private struct ProfileStatColumn: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: 1) {
+        VStack(spacing: 2) {
             Text("\(count)")
-                .font(BelongFont.bodySemiBold())
+                .font(BelongFont.stat(20))
                 .foregroundStyle(BelongColor.textPrimary)
             Text(label)
                 .font(BelongFont.caption())
@@ -359,7 +405,7 @@ private struct ProfileCulturalTags: View {
             }
 
             if tags.isEmpty {
-                Text("No tags yet \u{1F3F7}\u{FE0F} — tap Edit to add yours")
+                Text("No tags yet \u{2014} tap Edit to add yours")
                     .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textTertiary)
             } else {

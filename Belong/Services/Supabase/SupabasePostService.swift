@@ -59,7 +59,7 @@ final class SupabasePostService: PostServiceProtocol {
         return post
     }
 
-    func create(content: String, imageURLs: [URL], tags: [String], visibility: PostVisibility, linkedGatheringId: String?) async throws -> Post {
+    func create(content: String, imageURLs: [URL], tags: [String], visibility: PostVisibility, linkedGatheringId: String?, city: String? = nil, school: String? = nil) async throws -> Post {
         let myId = try manager.requireUserId()
         let postId = UUID().uuidString.lowercased()
 
@@ -70,7 +70,7 @@ final class SupabasePostService: PostServiceProtocol {
             content: content,
             visibility: visibility.rawValue,
             linkedGatheringId: linkedGatheringId,
-            city: nil, school: nil,
+            city: city, school: school,
             likeCount: 0, commentCount: 0, saveCount: 0,
             createdAt: nil
         )
@@ -107,28 +107,12 @@ final class SupabasePostService: PostServiceProtocol {
     }
 
     func toggleLike(postId: String) async throws -> (liked: Bool, count: Int) {
-        try await manager.client.rpc("toggle_post_like", params: ToggleLikeParams(pPostId: postId))
-            .execute()
-
-        // Fetch current state
-        let myId = try manager.requireUserId()
-        let likes: [PostLikeRow] = try await manager.client.from("post_likes")
-            .select("post_id")
-            .eq("user_id", value: myId)
-            .eq("post_id", value: postId)
+        // The RPC returns {"liked": bool, "like_count": int} — use it directly
+        let result: ToggleLikeResult = try await manager.client
+            .rpc("toggle_post_like", params: ToggleLikeParams(pPostId: postId))
             .execute()
             .value
-        let isLiked = !likes.isEmpty
-
-        let posts: [DBPost] = try await manager.client.from("posts")
-            .select()
-            .eq("id", value: postId)
-            .limit(1)
-            .execute()
-            .value
-        let count = posts.first?.likeCount ?? 0
-
-        return (liked: isLiked, count: count)
+        return (liked: result.liked, count: result.likeCount)
     }
 
     func toggleSave(postId: String) async throws -> Bool {
@@ -200,7 +184,8 @@ final class SupabasePostService: PostServiceProtocol {
     }
 
     func addComment(postId: String, content: String, parentId: String?) async throws -> PostComment {
-        let result: DBPostComment = try await manager.client
+        // RPC returns {"comment_id": "uuid"} — decode as lightweight result
+        let result: AddCommentResult = try await manager.client
             .rpc("add_post_comment", params: AddCommentParams(pPostId: postId, pContent: content, pParentCommentId: parentId))
             .execute()
             .value
@@ -216,7 +201,7 @@ final class SupabasePostService: PostServiceProtocol {
         let user = users.first
 
         return PostComment(
-            id: result.id ?? UUID().uuidString,
+            id: result.commentId,
             postId: postId,
             authorId: myId,
             content: content,
@@ -252,6 +237,22 @@ final class SupabasePostService: PostServiceProtocol {
 }
 
 // MARK: - Helper DTOs
+
+private struct AddCommentResult: Codable {
+    let commentId: String
+    enum CodingKeys: String, CodingKey {
+        case commentId = "comment_id"
+    }
+}
+
+private struct ToggleLikeResult: Codable {
+    let liked: Bool
+    let likeCount: Int
+    enum CodingKeys: String, CodingKey {
+        case liked
+        case likeCount = "like_count"
+    }
+}
 
 private struct PostLikeRow: Codable {
     let postId: String

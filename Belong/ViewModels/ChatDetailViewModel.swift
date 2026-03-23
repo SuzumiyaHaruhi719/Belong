@@ -7,6 +7,7 @@ final class ChatDetailViewModel {
     // MARK: - Dependencies
     private let chatService: any ChatServiceProtocol
     private var realtimeChannel: RealtimeChannelV2?
+    private var listenerTask: Task<Void, Never>?
 
     // MARK: - State
     var conversation: Conversation?
@@ -95,10 +96,11 @@ final class ChatDetailViewModel {
 
             await channel.subscribe()
 
-            // Listen for new messages in background
-            Task { [weak self] in
+            // Listen for new messages in background (tracked so we can cancel)
+            listenerTask = Task { [weak self] in
                 for await insert in insertions {
                     guard let self else { return }
+                    guard !Task.isCancelled else { return }
                     let record = insert.record
                     let senderId = (try? record["sender_id"]?.value as? String) ?? ""
                     let myId = SupabaseManager.shared.currentUserId ?? ""
@@ -106,6 +108,10 @@ final class ChatDetailViewModel {
                     // Skip if this message is already in the list (sent by us via sendMessage)
                     let msgId = (try? record["id"]?.value as? String) ?? ""
                     if !msgId.isEmpty && self.messages.contains(where: { $0.id == msgId }) { continue }
+
+                    // Resolve sender name from conversation members
+                    let senderMember = self.conversation?.members.first { $0.userId == senderId }
+                    let resolvedName = senderMember?.displayName ?? "User"
 
                     let newMessage = Message(
                         id: (try? record["id"]?.value as? String) ?? UUID().uuidString,
@@ -119,9 +125,9 @@ final class ChatDetailViewModel {
                         replyTo: nil,
                         status: .delivered,
                         createdAt: Date(),
-                        senderName: "User",
+                        senderName: resolvedName,
                         senderAvatarEmoji: "🙂",
-                        isCurrentUser: false,
+                        isCurrentUser: senderId == myId,
                         sharedPostPreview: nil
                     )
                     self.messages.append(newMessage)
@@ -135,6 +141,8 @@ final class ChatDetailViewModel {
     }
 
     func unsubscribe() async {
+        listenerTask?.cancel()
+        listenerTask = nil
         if let channel = realtimeChannel {
             await SupabaseManager.shared.client.realtimeV2.removeChannel(channel)
             realtimeChannel = nil

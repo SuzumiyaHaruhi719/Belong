@@ -18,9 +18,16 @@ struct SavedGatheringsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if viewModel == nil {
-                viewModel = ProfileViewModel(userService: container.userService)
+                let vm = ProfileViewModel(userService: container.userService)
+                vm.gatheringService = container.gatheringService
+                viewModel = vm
             }
             await viewModel?.loadSaved()
+        }
+        .onAppear {
+            if viewModel != nil {
+                Task { await viewModel?.loadSaved() }
+            }
         }
     }
 }
@@ -48,8 +55,8 @@ private struct SavedGatheringsContent: View {
             } else if viewModel.savedGatherings.isEmpty {
                 EmptyStateView(
                     icon: "bookmark",
-                    title: "No saved gatherings \u{1F516}",
-                    message: "Bookmark gatherings to find them here."
+                    title: "Nothing saved yet",
+                    message: "Tap the bookmark icon on any gathering to save it for later."
                 )
             } else {
                 List {

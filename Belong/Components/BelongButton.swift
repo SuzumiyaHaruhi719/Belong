@@ -10,6 +10,7 @@ struct BelongButton: View {
     var isFullWidth: Bool = false
     var isLoading: Bool = false
     var isDisabled: Bool = false
+    var isCompact: Bool = false
     var leadingIcon: String? = nil
     let action: () -> Void
 
@@ -20,11 +21,24 @@ struct BelongButton: View {
                 style: style,
                 isFullWidth: isFullWidth,
                 isLoading: isLoading,
+                isCompact: isCompact,
                 leadingIcon: leadingIcon
             )
         }
+        .buttonStyle(BelongPressStyle())
         .disabled(isDisabled || isLoading)
+        .opacity(isDisabled ? 0.5 : 1)
         .accessibilityLabel(title)
+    }
+}
+
+// Press effect: scale down slightly + reduce opacity. Feels tactile.
+struct BelongPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.85 : 1.0)
+            .animation(BelongMotion.quick, value: configuration.isPressed)
     }
 }
 
@@ -33,6 +47,7 @@ struct BelongButtonContent: View {
     let style: BelongButtonStyle
     let isFullWidth: Bool
     let isLoading: Bool
+    let isCompact: Bool
     let leadingIcon: String?
 
     var body: some View {
@@ -43,22 +58,22 @@ struct BelongButtonContent: View {
             } else {
                 if let icon = leadingIcon {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: isCompact ? 14 : 16, weight: .semibold))
                 }
                 Text(title)
-                    .font(BelongFont.button())
+                    .font(isCompact ? BelongFont.buttonSmall() : BelongFont.button())
             }
         }
         .frame(maxWidth: isFullWidth ? .infinity : nil)
-        .frame(height: Layout.buttonHeight)
+        .frame(height: isCompact ? Layout.buttonHeightCompact : Layout.buttonHeight)
         .padding(.horizontal, Spacing.xl)
         .foregroundStyle(foregroundColor)
         .background(backgroundColor)
         .overlay(borderOverlay)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
         .shadow(
-            color: style == .primary ? BelongColor.primary.opacity(0.2) : .clear,
-            radius: 6, x: 0, y: 3
+            color: style == .primary ? BelongColor.primary.opacity(0.18) : .clear,
+            radius: 8, x: 0, y: 4
         )
     }
 
@@ -84,7 +99,7 @@ struct BelongButtonContent: View {
     private var borderOverlay: some View {
         if style == .secondary {
             RoundedRectangle(cornerRadius: Layout.radiusMd)
-                .stroke(BelongColor.primary, lineWidth: 1.5)
+                .stroke(BelongColor.border, lineWidth: 1)
         }
     }
 }
@@ -98,6 +113,7 @@ struct BelongButtonContent: View {
         BelongButton(title: "Loading", style: .primary, isFullWidth: true, isLoading: true, action: {})
         BelongButton(title: "Disabled", style: .primary, isFullWidth: true, isDisabled: true, action: {})
         BelongButton(title: "With Icon", style: .primary, leadingIcon: "plus", action: {})
+        BelongButton(title: "Compact", style: .secondary, isCompact: true, action: {})
     }
     .padding()
     .background(BelongColor.background)

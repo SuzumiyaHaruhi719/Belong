@@ -32,7 +32,7 @@ final class MockPostService: PostServiceProtocol {
         }
     }
 
-    nonisolated func create(content: String, imageURLs: [URL], tags: [String], visibility: PostVisibility, linkedGatheringId: String?) async throws -> Post {
+    nonisolated func create(content: String, imageURLs: [URL], tags: [String], visibility: PostVisibility, linkedGatheringId: String?, city: String? = nil, school: String? = nil) async throws -> Post {
         try await Task.sleep(for: .milliseconds(800))
         return await MainActor.run {
             let postId = UUID().uuidString

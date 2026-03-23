@@ -17,15 +17,11 @@ struct GatheringCard: View {
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
-        .overlay(
-            RoundedRectangle(cornerRadius: Layout.radiusLg)
-                .stroke(BelongColor.border.opacity(0.5), lineWidth: 0.5)
-        )
         .shadow(
-            color: BelongShadow.level2.color,
-            radius: BelongShadow.level2.radius,
-            x: BelongShadow.level2.x,
-            y: BelongShadow.level2.y
+            color: BelongShadow.level1.color,
+            radius: BelongShadow.level1.radius,
+            x: BelongShadow.level1.x,
+            y: BelongShadow.level1.y
         )
     }
 }
@@ -122,7 +118,7 @@ struct GatheringCardBody: View {
     let gathering: Gathering
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             Text(gathering.title)
                 .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
@@ -137,7 +133,8 @@ struct GatheringCardBody: View {
 
             GatheringCardFooter(gathering: gathering)
         }
-        .padding(Spacing.base)
+        .padding(.horizontal, Spacing.base)
+        .padding(.vertical, Spacing.md)
     }
 }
 

@@ -92,7 +92,15 @@ private struct ConnectionsContent: View {
                 .padding(.bottom, Spacing.sm)
 
             if let error = viewModel.error {
-                ErrorStateView(message: error)
+                ErrorStateView(message: error, onRetry: {
+                    Task {
+                        switch selectedTab {
+                        case .followers: await viewModel.loadFollowers()
+                        case .following: await viewModel.loadFollowing()
+                        case .mutuals: await viewModel.loadMutuals()
+                        }
+                    }
+                })
             } else if currentUsers.isEmpty {
                 connectionEmptyState
             } else {
@@ -123,19 +131,19 @@ private struct ConnectionsContent: View {
             EmptyStateView(
                 icon: "person.2",
                 title: "No followers yet",
-                message: "When people follow you, they will appear here."
+                message: "Share your profile or join gatherings to grow your community."
             )
         case .following:
             EmptyStateView(
                 icon: "person.badge.plus",
-                title: "Not following anyone",
-                message: "Follow people to see them here."
+                title: "Not following anyone yet",
+                message: "Discover people through gatherings and posts."
             )
         case .mutuals:
             EmptyStateView(
                 icon: "person.2.fill",
                 title: "No mutuals yet",
-                message: "When you and someone follow each other, they will appear here."
+                message: "When you and someone follow each other, they'll appear here."
             )
         }
     }
@@ -166,31 +174,31 @@ private struct ConnectionUserRow: View {
     }
 
     var body: some View {
-        NavigationLink(value: ProfileRoute.userProfile(user.id)) {
-            UserRow(
-                avatarEmoji: "👤",
-                name: user.displayName,
-                subtitle: "@\(user.username)",
-                trailingActionTitle: isProcessing ? "..." : trailingTitle,
-                onTrailingAction: {
-                    guard !isProcessing, !actionDone else { return }
-                    isProcessing = true
-                    Task {
-                        switch tab {
-                        case .followers:
-                            await viewModel.followUser(user.id)
-                        case .following:
-                            await viewModel.unfollowUser(user.id)
-                        case .mutuals:
-                            break
-                        }
-                        actionDone = true
-                        isProcessing = false
+        UserRow(
+            avatarURL: user.avatarURL,
+            avatarEmoji: "\u{1F464}",
+            name: user.displayName,
+            subtitle: "@\(user.username)",
+            trailingActionTitle: isProcessing ? "..." : trailingTitle,
+            onTrailingAction: {
+                guard !isProcessing, !actionDone else { return }
+                isProcessing = true
+                Task {
+                    viewModel.error = nil
+                    switch tab {
+                    case .followers:
+                        await viewModel.followUser(user.id)
+                    case .following:
+                        await viewModel.unfollowUser(user.id)
+                    case .mutuals:
+                        break
                     }
+                    // Only mark done if backend succeeded (no error was set)
+                    actionDone = viewModel.error == nil
+                    isProcessing = false
                 }
-            )
-        }
-        .buttonStyle(.plain)
+            }
+        )
     }
 }
 

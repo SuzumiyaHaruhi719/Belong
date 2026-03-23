@@ -10,6 +10,8 @@ final class ProfileViewModel {
     // MARK: - Dependencies
     private let userService: any UserServiceProtocol
     var storageService: (any StorageServiceProtocol)?
+    var gatheringService: (any GatheringServiceProtocol)?
+    var postService: (any PostServiceProtocol)?
 
     // MARK: - State
     var user: User?
@@ -187,16 +189,53 @@ final class ProfileViewModel {
     // MARK: - Actions
 
     func removeSavedGathering(at offsets: IndexSet) {
+        let itemsToRemove = offsets.map { savedGatherings[$0] }
         savedGatherings.remove(atOffsets: offsets)
+        // Persist unsave to backend
+        Task {
+            for gathering in itemsToRemove {
+                do {
+                    try await gatheringService?.unsave(gatheringId: gathering.id)
+                } catch {
+                    // Revert on failure — add back and show error
+                    savedGatherings.append(contentsOf: itemsToRemove)
+                    self.error = "Failed to unsave gathering"
+                    return
+                }
+            }
+        }
     }
 
     func removeSavedPost(at offsets: IndexSet) {
+        let itemsToRemove = offsets.map { savedPosts[$0] }
         savedPosts.remove(atOffsets: offsets)
+        // Persist unsave to backend
+        Task {
+            for post in itemsToRemove {
+                do {
+                    _ = try await postService?.toggleSave(postId: post.id)
+                } catch {
+                    // Revert on failure
+                    savedPosts.append(contentsOf: itemsToRemove)
+                    self.error = "Failed to unsave post"
+                    return
+                }
+            }
+        }
     }
 
     func followUser(_ userId: String) async {
         do {
             try await userService.follow(userId: userId)
+            // Update local state: move from followers to mutuals if applicable
+            if let idx = followers.firstIndex(where: { $0.id == userId }) {
+                let user = followers[idx]
+                if !following.contains(where: { $0.id == userId }) {
+                    following.append(user)
+                }
+            }
+            // Refresh profile to update counts (followingCount, mutualCount)
+            await loadProfile()
         } catch {
             self.error = error.localizedDescription
         }
@@ -205,6 +244,11 @@ final class ProfileViewModel {
     func unfollowUser(_ userId: String) async {
         do {
             try await userService.unfollow(userId: userId)
+            // Update local state
+            following.removeAll { $0.id == userId }
+            mutuals.removeAll { $0.id == userId }
+            // Refresh profile to update counts
+            await loadProfile()
         } catch {
             self.error = error.localizedDescription
         }

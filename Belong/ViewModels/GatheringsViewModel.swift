@@ -52,7 +52,8 @@ final class GatheringsViewModel {
             topPick = feedResult.first
 
             // Try recommendations separately (may fail if user has no tag data yet)
-            if let rec = try? await container.gatheringService.fetchRecommended(city: "Melbourne", limit: 1),
+            // Use empty city — the RPC reads the user's city from their profile
+            if let rec = try? await container.gatheringService.fetchRecommended(city: "", limit: 1),
                let first = rec.first {
                 topPick = first
             }

@@ -25,11 +25,13 @@ final class SupabaseUserService: UserServiceProtocol {
         async let followingCount = countRows("follows", column: "follower_id", value: userId)
         async let postCount = countRows("posts", column: "author_id", value: userId)
         async let hostedCount = countRows("gatherings", column: "host_id", value: userId)
+        async let mutualCount = computeMutualCount(forUserId: userId)
 
         user.followerCount = try await followerCount
         user.followingCount = try await followingCount
         user.postCount = try await postCount
         user.gatheringsHosted = try await hostedCount
+        user.mutualCount = try await mutualCount
         return user
     }
 
@@ -92,9 +94,13 @@ final class SupabaseUserService: UserServiceProtocol {
 
     func checkUsernameAvailability(_ username: String) async throws -> Bool {
         let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let existing: [DBUser] = try await manager.client.from("users")
+        var query = manager.client.from("users")
             .select("id")
             .eq("username", value: trimmed)
+        if let myId = manager.currentUserId {
+            query = query.neq("id", value: myId)
+        }
+        let existing: [DBUser] = try await query
             .limit(1)
             .execute()
             .value
@@ -102,12 +108,23 @@ final class SupabaseUserService: UserServiceProtocol {
     }
 
     func follow(userId: String) async throws {
-        try await manager.client.rpc("toggle_user_follow", params: FollowParams(pTargetId: userId))
-            .execute()
+        let myId = try manager.requireUserId()
+        // Idempotent: only insert if not already following
+        let alreadyFollowing = try await isFollowing(userId: userId)
+        if !alreadyFollowing {
+            try await manager.client.from("follows")
+                .insert(FollowInsert(followerId: myId, followingId: userId))
+                .execute()
+        }
     }
 
     func unfollow(userId: String) async throws {
-        try await manager.client.rpc("toggle_user_follow", params: FollowParams(pTargetId: userId))
+        let myId = try manager.requireUserId()
+        // Idempotent: only delete if currently following
+        try await manager.client.from("follows")
+            .delete()
+            .eq("follower_id", value: myId)
+            .eq("following_id", value: userId)
             .execute()
     }
 
@@ -171,8 +188,8 @@ final class SupabaseUserService: UserServiceProtocol {
             .eq("following_id", value: myId)
             .execute()
             .value
-        let followingSet = Set(myFollowing.map(\.followingId))
-        let followerSet = Set(myFollowers.map(\.followerId))
+        let followingSet = Set(myFollowing.compactMap(\.followingId))
+        let followerSet = Set(myFollowers.compactMap(\.followerId))
         let mutualIds = Array(followingSet.intersection(followerSet))
         guard !mutualIds.isEmpty else { return [] }
 
@@ -271,13 +288,42 @@ final class SupabaseUserService: UserServiceProtocol {
 
     func fetchMyPosts() async throws -> [Post] {
         let myId = try manager.requireUserId()
+        return try await fetchUserPosts(userId: myId)
+    }
+
+    func fetchUserPosts(userId: String) async throws -> [Post] {
         let rows: [PostRowWithRelations] = try await manager.client.from("posts")
             .select("*, post_images(*), post_tags(tag_value)")
-            .eq("author_id", value: myId)
+            .eq("author_id", value: userId)
             .order("created_at", ascending: false)
             .execute()
             .value
         return rows.map { mapPostRowWithRelations($0) }
+    }
+
+    func fetchUserGatherings(userId: String) async throws -> [Gathering] {
+        // Fetch gatherings where user is host or a joined member
+        let hosted: [DBGathering] = try await manager.client.from("gatherings")
+            .select()
+            .eq("host_id", value: userId)
+            .eq("is_draft", value: false)
+            .order("starts_at", ascending: false)
+            .execute()
+            .value
+
+        let members: [GatheringMemberWithGathering] = try await manager.client.from("gathering_members")
+            .select("gathering_id, gatherings(*)")
+            .eq("user_id", value: userId)
+            .eq("status", value: "joined")
+            .execute()
+            .value
+        let joined = members.compactMap { $0.gatherings }.map { mapDBGathering($0, isJoined: true) }
+
+        // Merge hosted and joined, dedup by id
+        var result = hosted.map { mapDBGathering($0) }
+        let hostedIds = Set(result.map(\.id))
+        result.append(contentsOf: joined.filter { !hostedIds.contains($0.id) })
+        return result
     }
 
     func fetchCities(query: String) async throws -> [String] {
@@ -347,6 +393,22 @@ final class SupabaseUserService: UserServiceProtocol {
 
     // MARK: - Helpers
 
+    private func computeMutualCount(forUserId userId: String) async throws -> Int {
+        async let followingRows: [FollowRow] = manager.client.from("follows")
+            .select("following_id")
+            .eq("follower_id", value: userId)
+            .execute()
+            .value
+        async let followerRows: [FollowRow] = manager.client.from("follows")
+            .select("follower_id")
+            .eq("following_id", value: userId)
+            .execute()
+            .value
+        let followingSet = Set(try await followingRows.compactMap(\.followingId))
+        let followerSet = Set(try await followerRows.compactMap(\.followerId))
+        return followingSet.intersection(followerSet).count
+    }
+
     private func countRows(_ table: String, column: String, value: String) async throws -> Int {
         let rows: [CountRow] = try await manager.client.from(table)
             .select(column, head: false)
@@ -376,6 +438,15 @@ private struct BlockRow: Codable {
     var blockedId: String
     enum CodingKeys: String, CodingKey {
         case blockedId = "blocked_id"
+    }
+}
+
+private struct FollowInsert: Codable {
+    let followerId: String
+    let followingId: String
+    enum CodingKeys: String, CodingKey {
+        case followerId = "follower_id"
+        case followingId = "following_id"
     }
 }
 
@@ -431,25 +502,32 @@ nonisolated struct PostFeedRPCRow: Codable, Sendable {
     var authorName: String?
     var authorUsername: String?
     var authorAvatar: String?
+    var authorDefaultAvatar: Int?
     var content: String?
+    var visibility: String?
+    var city: String?
+    var school: String?
     var imageUrls: [String]?
     var tags: [String]?
     var likeCount: Int?
     var commentCount: Int?
+    var saveCount: Int?
     var isLiked: Bool?
     var isSaved: Bool?
     var linkedGatheringId: String?
     var createdAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, content, tags
+        case id, content, visibility, city, school, tags
         case authorId = "author_id"
         case authorName = "author_name"
         case authorUsername = "author_username"
         case authorAvatar = "author_avatar"
+        case authorDefaultAvatar = "author_default_avatar"
         case imageUrls = "image_urls"
         case likeCount = "like_count"
         case commentCount = "comment_count"
+        case saveCount = "save_count"
         case isLiked = "is_liked"
         case isSaved = "is_saved"
         case linkedGatheringId = "linked_gathering_id"
@@ -467,13 +545,13 @@ func mapPostFeedRPCRow(_ row: PostFeedRPCRow) -> Post {
             PostImage(id: UUID().uuidString, postId: row.id ?? "", imageURL: url, displayOrder: idx, width: nil, height: nil)
         },
         tags: row.tags ?? [],
-        visibility: .publicPost,
+        visibility: PostVisibility(rawValue: row.visibility ?? "public") ?? .publicPost,
         linkedGatheringId: row.linkedGatheringId,
-        city: "",
-        school: nil,
+        city: row.city ?? "",
+        school: row.school,
         likeCount: row.likeCount ?? 0,
         commentCount: row.commentCount ?? 0,
-        saveCount: 0,
+        saveCount: row.saveCount ?? 0,
         isLiked: row.isLiked ?? false,
         isSaved: row.isSaved ?? false,
         createdAt: parseSupabaseDate(row.createdAt),
@@ -549,6 +627,7 @@ func mapDBGathering(_ row: DBGathering, isBookmarked: Bool = false, isJoined: Bo
         attendeeAvatars: [],
         hostName: "",
         hostAvatarEmoji: "🙂",
+        hostAvatarURL: nil,
         hostRating: 0,
         isBookmarked: isBookmarked,
         isJoined: isJoined,

@@ -118,6 +118,7 @@ struct MessageBannerView: View {
 struct InAppBannerOverlay: ViewModifier {
     @Environment(InAppBannerManager.self) private var bannerManager
     @Environment(AppState.self) private var appState
+    @State private var hapticTrigger = 0
 
     func body(content: Content) -> some View {
         ZStack(alignment: .top) {
@@ -136,6 +137,12 @@ struct InAppBannerOverlay: ViewModifier {
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .padding(.top, 8)
                 .zIndex(9999)
+            }
+        }
+        .sensoryFeedback(.impact(weight: .medium), trigger: hapticTrigger)
+        .onChange(of: bannerManager.currentBanner?.id) { _, newId in
+            if newId != nil {
+                hapticTrigger += 1
             }
         }
     }

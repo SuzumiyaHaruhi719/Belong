@@ -28,11 +28,34 @@ struct CustomizeGatheringScreen: View {
     let template: HostingTemplate?
     @Binding var path: NavigationPath
     @State private var attemptedPreview = false
+    @State private var showDraftSavedBanner = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.xl) {
+                    // Draft saved confirmation banner
+                    if showDraftSavedBanner {
+                        HStack(spacing: Spacing.sm) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(BelongColor.success)
+                            Text("Draft saved")
+                                .font(BelongFont.secondaryMedium())
+                                .foregroundStyle(BelongColor.textPrimary)
+                        }
+                        .padding(Spacing.md)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(BelongColor.success.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+
+                    if let error = viewModel.draftError {
+                        InlineErrorBanner(message: error) {
+                            viewModel.draftError = nil
+                        }
+                    }
+
                     CustomizeGatheringCoverSection(viewModel: viewModel)
                     CustomizeGatheringDetailsSection(viewModel: viewModel, attemptedPreview: attemptedPreview)
                     CustomizeGatheringWhenSection(viewModel: viewModel, attemptedPreview: attemptedPreview)
@@ -60,8 +83,22 @@ struct CustomizeGatheringScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Save draft") {
-                    Task { await viewModel.saveDraft() }
+                Button {
+                    Task {
+                        await viewModel.saveDraft()
+                        if viewModel.draftSaved {
+                            withAnimation { showDraftSavedBanner = true }
+                            try? await Task.sleep(for: .seconds(2.5))
+                            withAnimation { showDraftSavedBanner = false }
+                        }
+                    }
+                } label: {
+                    if viewModel.isSavingDraft {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Save draft")
+                    }
                 }
                 .disabled(viewModel.isSavingDraft)
                 .font(BelongFont.secondaryMedium())

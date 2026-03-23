@@ -102,9 +102,9 @@ Toggle `DependencyContainer.useLiveBackend` to switch between Supabase and Mock 
 - **In-app banner:** Slide-down notification when receiving messages
 - **Profile:** View/edit, cultural tags, follow/unfollow (persisted), connections
 - **Recommendation:** SQL-based scoring algorithm for gatherings and posts
+- **Storage uploads:** Real Supabase Storage via `SupabaseStorageService` (avatars, post-images, gathering-images, profile-backgrounds)
 
 ### Partially Working
-- **Storage uploads:** Protocol exists but uses MockStorageService (image picker UI wired but uploads don't persist to Supabase Storage)
 - **Push notifications:** No APNs/FCM integration yet (in-app banner only)
 - **Search:** Gathering search exists but may not cover all filter combinations
 

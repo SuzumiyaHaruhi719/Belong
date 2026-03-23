@@ -30,10 +30,8 @@ struct ChatDetailScreen: View {
                 vm.conversation = conversation
                 viewModel = vm
                 await vm.loadMessages(conversationId: conversation.id)
-                // Decrement badge after marking as read
-                if conversation.unreadCount > 0 {
-                    appState.unreadChatCount = max(0, appState.unreadChatCount - conversation.unreadCount)
-                }
+                // Refresh badge from backend after marking as read (avoids stale subtraction)
+                await refreshBadgeCount()
             }
         }
         .onAppear {
@@ -42,6 +40,16 @@ struct ChatDetailScreen: View {
         .onDisappear {
             bannerManager.activeConversationId = nil
             Task { await viewModel?.unsubscribe() }
+        }
+    }
+
+    /// Fetch true unread count from backend to correct any drift from incremental updates.
+    private func refreshBadgeCount() async {
+        do {
+            let conversations = try await container.chatService.fetchConversations()
+            appState.unreadChatCount = conversations.reduce(0) { $0 + $1.unreadCount }
+        } catch {
+            // Badge refresh is best-effort
         }
     }
 }

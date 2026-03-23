@@ -58,17 +58,27 @@ final class AppState {
         authStatus = .authenticated
     }
 
-    func logout() {
+    func logout() async {
+        // Sign out from Supabase to clear persisted session token
+        if DependencyContainer.useLiveBackend {
+            try? await SupabaseManager.shared.client.auth.signOut()
+            // Clean up Realtime WebSocket channels
+            await SupabaseManager.shared.client.realtimeV2.removeAllChannels()
+        }
         currentUser = nil
         authStatus = .onboarding
         selectedTab = .gatherings
+        unreadChatCount = 0
+        unreadNotificationCount = 0
     }
 
     func checkAuth() async {
         if DependencyContainer.useLiveBackend {
             let manager = SupabaseManager.shared
-            if let _ = try? await manager.client.auth.session,
-               let userId = manager.currentUserId {
+            do {
+                let session = try await manager.client.auth.session
+                let userId = session.user.id.uuidString.lowercased()
+                // Session exists — try to fetch profile
                 if let rows: [DBUser] = try? await manager.client.from("users")
                     .select()
                     .eq("id", value: userId)
@@ -80,6 +90,25 @@ final class AppState {
                     authStatus = .authenticated
                     return
                 }
+                // Session valid but profile fetch failed (network issue) — still authenticated
+                // Construct minimal user from session data
+                currentUser = User(
+                    id: userId,
+                    email: session.user.email ?? "",
+                    username: session.user.userMetadata["username"]?.value as? String ?? "",
+                    displayName: session.user.userMetadata["username"]?.value as? String ?? "",
+                    avatarURL: nil, defaultAvatarId: nil, bio: "",
+                    city: "", school: "", appLanguage: "en",
+                    privacyProfile: .publicProfile, privacyDM: .mutualOnly,
+                    notificationsEnabled: true,
+                    followerCount: 0, followingCount: 0, mutualCount: 0,
+                    gatheringsAttended: 0, gatheringsHosted: 0, postCount: 0,
+                    createdAt: Date(), lastActiveAt: Date()
+                )
+                authStatus = .authenticated
+                return
+            } catch {
+                // No valid session — go to onboarding
             }
         }
         authStatus = .onboarding

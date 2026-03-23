@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct UserProfileScreen: View {
     let userId: String
@@ -10,9 +11,15 @@ struct UserProfileScreen: View {
     @State private var error: String?
     @State private var isFollowing = false
     @State private var selectedTab: ProfileTab = .posts
-    @State private var showOverflowMenu = false
     @State private var showBlockConfirm = false
     @State private var showReportSheet = false
+    @State private var isMutual = false
+    @State private var isCreatingDM = false
+    @Environment(AppState.self) private var appState
+
+    private var isOwnProfile: Bool {
+        userId == appState.currentUser?.id
+    }
 
     var body: some View {
         Group {
@@ -29,8 +36,11 @@ struct UserProfileScreen: View {
                     gatherings: gatherings,
                     isFollowing: $isFollowing,
                     selectedTab: $selectedTab,
+                    isMutual: isMutual,
+                    isCreatingDM: isCreatingDM,
+                    isOwnProfile: isOwnProfile,
                     onFollow: { await toggleFollow() },
-                    onBlock: { await blockUser() }
+                    onMessage: { await startMessage() }
                 )
             }
         }
@@ -38,21 +48,23 @@ struct UserProfileScreen: View {
         .navigationTitle(user?.displayName ?? "Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button(role: .destructive) {
-                        showBlockConfirm = true
+            if !isOwnProfile {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            showBlockConfirm = true
+                        } label: {
+                            Label("Block", systemImage: "slash.circle")
+                        }
+                        Button(role: .destructive) {
+                            showReportSheet = true
+                        } label: {
+                            Label("Report", systemImage: "flag")
+                        }
                     } label: {
-                        Label("Block", systemImage: "slash.circle")
+                        Image(systemName: "ellipsis")
+                            .foregroundStyle(BelongColor.textPrimary)
                     }
-                    Button(role: .destructive) {
-                        showReportSheet = true
-                    } label: {
-                        Label("Report", systemImage: "flag")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .foregroundStyle(BelongColor.textPrimary)
                 }
             }
         }
@@ -87,8 +99,24 @@ struct UserProfileScreen: View {
     }
 
     private func loadFollowState() async {
+        guard !isOwnProfile else { return }
         do {
             isFollowing = try await container.userService.isFollowing(userId: userId)
+            // Check mutual: I follow them AND they follow me
+            if isFollowing, let myId = SupabaseManager.shared.currentUserId {
+                struct FollowCheck: Codable { let follower_id: String }
+                let theyFollowMe: [FollowCheck] = try await SupabaseManager.shared.client
+                    .from("follows")
+                    .select("follower_id")
+                    .eq("follower_id", value: userId)
+                    .eq("following_id", value: myId)
+                    .limit(1)
+                    .execute()
+                    .value
+                isMutual = !theyFollowMe.isEmpty
+            } else {
+                isMutual = false
+            }
         } catch {
             // Best-effort — keep current state
         }
@@ -96,7 +124,7 @@ struct UserProfileScreen: View {
 
     private func loadPosts() async {
         do {
-            posts = try await container.userService.fetchMyPosts()
+            posts = try await container.userService.fetchUserPosts(userId: userId)
         } catch {
             // Silently fail for sub-content
         }
@@ -104,7 +132,7 @@ struct UserProfileScreen: View {
 
     private func loadGatherings() async {
         do {
-            gatherings = try await container.userService.fetchMyGatherings(role: nil)
+            gatherings = try await container.userService.fetchUserGatherings(userId: userId)
         } catch {
             // Silently fail for sub-content
         }
@@ -121,12 +149,33 @@ struct UserProfileScreen: View {
             } else {
                 try await container.userService.follow(userId: user.id)
             }
-            // Verify actual state from backend
-            isFollowing = try await container.userService.isFollowing(userId: user.id)
+            // Refresh follow + mutual state from backend
+            await loadFollowState()
+            // Refresh profile to update follower/following/mutual counts
+            self.user = try await container.userService.fetchProfile(userId: user.id)
         } catch {
             // Rollback on failure
             isFollowing = wasFollowing
             self.error = error.localizedDescription
+        }
+    }
+
+    private func startMessage() async {
+        guard !isCreatingDM else { return }
+        isCreatingDM = true
+        defer { isCreatingDM = false }
+        do {
+            let conversation = try await container.chatService.createDMConversation(with: userId)
+            appState.selectedTab = .chat
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                NotificationCenter.default.post(
+                    name: .openConversation,
+                    object: nil,
+                    userInfo: ["conversation": conversation]
+                )
+            }
+        } catch {
+            self.error = "Could not start conversation"
         }
     }
 
@@ -148,19 +197,47 @@ private struct UserProfileScrollContent: View {
     let gatherings: [Gathering]
     @Binding var isFollowing: Bool
     @Binding var selectedTab: ProfileTab
+    let isMutual: Bool
+    let isCreatingDM: Bool
+    let isOwnProfile: Bool
     let onFollow: () async -> Void
-    let onBlock: () async -> Void
+    let onMessage: () async -> Void
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: Spacing.lg) {
-                UserProfileHeader(user: user)
+            LazyVStack(spacing: 0) {
+                // Cover banner with overlapping avatar
+                UserProfileBanner(user: user)
+
+                // Compact identity (name, username, bio, school/city)
+                UserProfileCompactIdentity(user: user)
+                    .padding(.top, Spacing.xs)
+
+                // Stats row
                 UserProfileStats(user: user)
-                UserProfileActions(
-                    isFollowing: isFollowing,
-                    isMutual: user.mutualCount > 0,
-                    onFollow: onFollow
-                )
+                    .padding(.top, Spacing.sm)
+                    .padding(.bottom, Spacing.sm)
+
+                // Actions (hidden for own profile)
+                if !isOwnProfile {
+                    UserProfileActions(
+                        isFollowing: isFollowing,
+                        isMutual: isMutual,
+                        isCreatingDM: isCreatingDM,
+                        onFollow: onFollow,
+                        onMessage: onMessage
+                    )
+                    .padding(.bottom, Spacing.sm)
+                }
+
+                // Cultural tags
+                UserProfileTags(userId: user.id)
+                    .padding(.bottom, Spacing.md)
+
+                // Divider + tab selector
+                Rectangle()
+                    .fill(BelongColor.divider)
+                    .frame(height: 1)
 
                 Picker("Content", selection: $selectedTab) {
                     ForEach(ProfileTab.allCases, id: \.self) { tab in
@@ -169,6 +246,7 @@ private struct UserProfileScrollContent: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, Layout.screenPadding)
+                .padding(.vertical, Spacing.sm)
 
                 switch selectedTab {
                 case .posts:
@@ -182,49 +260,98 @@ private struct UserProfileScrollContent: View {
     }
 }
 
-// MARK: - Header
+// MARK: - Cover Banner (read-only)
 
-private struct UserProfileHeader: View {
+private struct UserProfileBanner: View {
+    let user: User
+    private let bannerHeight: CGFloat = 150
+    private let avatarOverlap: CGFloat = 32
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Banner
+            if let bgURL = user.profileBackgroundURL {
+                AsyncImage(url: bgURL) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    default:
+                        defaultGradient
+                    }
+                }
+                .frame(height: bannerHeight)
+                .clipped()
+            } else {
+                defaultGradient
+                    .frame(height: bannerHeight)
+            }
+
+            // Avatar overlapping the banner edge
+            AvatarView(imageURL: user.avatarURL, emoji: "\u{1F464}", size: .xlarge)
+                .frame(width: 68, height: 68)
+                .background(BelongColor.background)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(BelongColor.background, lineWidth: 3))
+                .offset(y: avatarOverlap)
+        }
+        .padding(.bottom, avatarOverlap)
+    }
+
+    private var defaultGradient: some View {
+        LinearGradient(
+            colors: [
+                BelongColor.primary.opacity(0.35),
+                BelongColor.surfaceSecondary,
+                BelongColor.background
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+}
+
+// MARK: - Compact Identity
+
+private struct UserProfileCompactIdentity: View {
     let user: User
 
     var body: some View {
-        VStack(spacing: Spacing.md) {
-            AvatarView(imageURL: user.avatarURL, emoji: "👤", size: .xlarge)
-
+        VStack(spacing: 2) {
             Text(user.displayName)
-                .font(BelongFont.h1())
+                .font(BelongFont.h2())
                 .foregroundStyle(BelongColor.textPrimary)
 
             Text("@\(user.username)")
-                .font(BelongFont.secondary())
+                .font(BelongFont.caption())
                 .foregroundStyle(BelongColor.textSecondary)
 
             if !user.bio.isEmpty {
                 Text(user.bio)
-                    .font(BelongFont.secondary())
+                    .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textPrimary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, Spacing.xl)
+                    .lineLimit(2)
+                    .padding(.horizontal, Spacing.xxl)
+                    .padding(.top, 2)
             }
 
             HStack(spacing: Spacing.sm) {
                 if !user.school.isEmpty {
                     Label(user.school, systemImage: "graduationcap")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.textSecondary)
                 }
                 if !user.city.isEmpty {
                     Label(user.city, systemImage: "mappin")
-                        .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.textSecondary)
                 }
             }
+            .font(BelongFont.caption())
+            .foregroundStyle(BelongColor.textTertiary)
+            .padding(.top, 2)
         }
-        .padding(.top, Spacing.base)
     }
 }
 
 // MARK: - Stats
+// Rounded numbers for typographic texture. Clean 3-column grid.
 
 private struct UserProfileStats: View {
     let user: User
@@ -246,7 +373,7 @@ private struct UserProfileStatColumn: View {
     var body: some View {
         VStack(spacing: Spacing.xs) {
             Text("\(count)")
-                .font(BelongFont.h2())
+                .font(BelongFont.stat())
                 .foregroundStyle(BelongColor.textPrimary)
             Text(label)
                 .font(BelongFont.caption())
@@ -261,7 +388,9 @@ private struct UserProfileStatColumn: View {
 private struct UserProfileActions: View {
     let isFollowing: Bool
     let isMutual: Bool
+    let isCreatingDM: Bool
     let onFollow: () async -> Void
+    let onMessage: () async -> Void
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -278,13 +407,63 @@ private struct UserProfileActions: View {
                     title: "Message",
                     style: .secondary,
                     isFullWidth: true,
+                    isLoading: isCreatingDM,
                     leadingIcon: "bubble.left"
                 ) {
-                    // Navigate to message
+                    Task { await onMessage() }
                 }
             }
         }
         .padding(.horizontal, Layout.screenPadding)
+    }
+}
+
+// MARK: - Cultural Tags (read-only)
+
+private struct UserProfileTags: View {
+    let userId: String
+    @State private var tags: [UserTag] = []
+
+    var body: some View {
+        Group {
+            if !tags.isEmpty {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Cultural Tags")
+                        .font(BelongFont.secondaryMedium())
+                        .foregroundStyle(BelongColor.textPrimary)
+
+                    FlowLayout(spacing: Spacing.xs) {
+                        ForEach(tags) { tag in
+                            ChipView(title: tag.value, isSelected: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, Layout.screenPadding)
+            }
+        }
+        .task {
+            await loadTags()
+        }
+    }
+
+    private func loadTags() async {
+        do {
+            let rows: [DBUserTag] = try await SupabaseManager.shared.client.from("user_tags")
+                .select()
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+            tags = rows.map {
+                UserTag(
+                    id: $0.id ?? UUID().uuidString,
+                    userId: $0.userId ?? userId,
+                    category: TagCategory(rawValue: $0.category) ?? .interestVibe,
+                    value: $0.tagValue
+                )
+            }
+        } catch {
+            // Fall back to empty
+        }
     }
 }
 
@@ -299,7 +478,7 @@ private struct UserProfilePostsGrid: View {
             EmptyStateView(
                 icon: "square.grid.2x2",
                 title: "No posts yet",
-                message: "This user hasn't shared any posts."
+                message: "When they share something, it will appear here."
             )
         } else {
             LazyVGrid(columns: columns, spacing: 2) {
@@ -357,7 +536,7 @@ private struct UserProfileGatheringsList: View {
             EmptyStateView(
                 icon: "person.3",
                 title: "No gatherings",
-                message: "This user hasn't hosted or joined any gatherings."
+                message: "No gatherings to show yet."
             )
         } else {
             LazyVStack(spacing: Spacing.base) {
@@ -378,14 +557,19 @@ private struct UserProfileGatheringsList: View {
 private struct UserProfileLoading: View {
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.lg) {
-                SkeletonView(width: 80, height: 80, cornerRadius: 40)
-                SkeletonView(width: 140, height: 24)
-                SkeletonView(width: 100, height: 16)
+            VStack(spacing: 0) {
+                SkeletonView(height: 150)
+                SkeletonView(width: 68, height: 68, cornerRadius: 34)
+                    .offset(y: -32)
+                    .padding(.bottom, -24)
+                SkeletonView(width: 140, height: 20)
+                    .padding(.top, Spacing.sm)
+                SkeletonView(width: 100, height: 14)
+                    .padding(.top, Spacing.xs)
                 SkeletonView(height: 48)
                     .padding(.horizontal, Layout.screenPadding)
+                    .padding(.top, Spacing.md)
             }
-            .padding(.top, Spacing.xl)
         }
     }
 }
@@ -394,5 +578,6 @@ private struct UserProfileLoading: View {
     NavigationStack {
         UserProfileScreen(userId: SampleData.userIdJin)
     }
+    .environment(AppState())
     .environment(DependencyContainer())
 }

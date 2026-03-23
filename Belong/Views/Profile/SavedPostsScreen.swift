@@ -18,9 +18,16 @@ struct SavedPostsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             if viewModel == nil {
-                viewModel = ProfileViewModel(userService: container.userService)
+                let vm = ProfileViewModel(userService: container.userService)
+                vm.postService = container.postService
+                viewModel = vm
             }
             await viewModel?.loadSaved()
+        }
+        .onAppear {
+            if viewModel != nil {
+                Task { await viewModel?.loadSaved() }
+            }
         }
     }
 }
@@ -48,8 +55,8 @@ private struct SavedPostsContent: View {
             } else if viewModel.savedPosts.isEmpty {
                 EmptyStateView(
                     icon: "bookmark",
-                    title: "No saved posts \u{1F4CC}",
-                    message: "Save posts you love."
+                    title: "Nothing saved yet",
+                    message: "Tap the bookmark icon on any post to save it for later."
                 )
             } else {
                 List {

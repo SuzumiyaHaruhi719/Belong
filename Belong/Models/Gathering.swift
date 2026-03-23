@@ -25,6 +25,7 @@ struct Gathering: Identifiable, Codable, Hashable {
     var attendeeAvatars: [String]  // first 5 avatar URLs/emojis for face pile
     var hostName: String
     var hostAvatarEmoji: String
+    var hostAvatarURL: URL? = nil
     var hostRating: Double
     var isBookmarked: Bool
     var isJoined: Bool
@@ -39,7 +40,7 @@ struct Gathering: Identifiable, Codable, Hashable {
             startsAt: Date(), maxAttendees: 10, visibility: .open,
             vibe: .welcoming, status: .upcoming, isDraft: false,
             tags: [], attendeeCount: 0, attendeeAvatars: [],
-            hostName: "", hostAvatarEmoji: "🙂", hostRating: 0,
+            hostName: "", hostAvatarEmoji: "🙂", hostAvatarURL: nil, hostRating: 0,
             isBookmarked: false, isJoined: false, isMaybe: false,
             createdAt: Date()
         )

@@ -50,7 +50,7 @@ private struct SettingsContent: View {
             Button("Log Out", role: .destructive) {
                 Task {
                     await viewModel.logout()
-                    appState.logout()
+                    await appState.logout()
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -61,7 +61,7 @@ private struct SettingsContent: View {
             Button("Delete Account", role: .destructive) {
                 Task {
                     await viewModel.deleteAccount()
-                    appState.logout()
+                    await appState.logout()
                 }
             }
             Button("Cancel", role: .cancel) {}

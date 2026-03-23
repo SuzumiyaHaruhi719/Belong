@@ -55,8 +55,8 @@ final class CreateGatheringViewModel {
             templateType: templateTypeFromTemplate,
             emoji: selectedTemplate?.emoji ?? "🎉",
             imageURL: coverImageURL,
-            city: "",
-            school: nil,
+            city: userCity,
+            school: userSchool,
             locationName: locationName,
             latitude: nil,
             longitude: nil,
@@ -93,6 +93,8 @@ final class CreateGatheringViewModel {
     // MARK: - Dependencies
 
     private(set) var container: DependencyContainer
+    var userCity: String = ""
+    var userSchool: String?
 
     init(container: DependencyContainer) {
         self.container = container
@@ -179,15 +181,13 @@ final class CreateGatheringViewModel {
 
         do {
             if let draftId = existingDraftId {
-                if let svc = container.gatheringService as? SupabaseGatheringService {
-                    let published = try await svc.publishDraft(gatheringId: draftId)
-                    publishedGatheringId = published.id
-                } else {
-                    var gathering = previewGathering
-                    gathering.isDraft = false
-                    let created = try await container.gatheringService.update(gathering)
-                    publishedGatheringId = created.id
-                }
+                // Update draft with latest form data, then flip to published
+                var gathering = previewGathering
+                gathering.isDraft = true // keep as draft during update
+                _ = try await container.gatheringService.update(gathering)
+                // Now flip isDraft=false atomically
+                let published = try await container.gatheringService.publishDraft(gatheringId: draftId)
+                publishedGatheringId = published.id
             } else {
                 var gathering = previewGathering
                 gathering.isDraft = false
@@ -209,24 +209,15 @@ final class CreateGatheringViewModel {
         do {
             var draft = previewGathering
             draft.isDraft = true
-            if let existingId = existingDraftId {
-                draft = Gathering(
-                    id: existingId, hostId: draft.hostId, title: draft.title,
-                    description: draft.description, templateType: draft.templateType,
-                    emoji: draft.emoji, imageURL: draft.imageURL, city: draft.city,
-                    school: draft.school, locationName: draft.locationName,
-                    latitude: draft.latitude, longitude: draft.longitude,
-                    startsAt: draft.startsAt, endsAt: draft.endsAt,
-                    maxAttendees: draft.maxAttendees, visibility: draft.visibility,
-                    vibe: draft.vibe, status: draft.status, isDraft: true,
-                    tags: draft.tags, attendeeCount: draft.attendeeCount,
-                    attendeeAvatars: draft.attendeeAvatars, hostName: draft.hostName,
-                    hostAvatarEmoji: draft.hostAvatarEmoji, hostRating: draft.hostRating,
-                    isBookmarked: draft.isBookmarked, isJoined: draft.isJoined,
-                    isMaybe: draft.isMaybe, createdAt: draft.createdAt
-                )
+
+            let saved: Gathering
+            if existingDraftId != nil {
+                // Update existing draft — don't create a duplicate
+                saved = try await container.gatheringService.update(draft)
+            } else {
+                // Create new draft
+                saved = try await container.gatheringService.create(draft)
             }
-            let saved = try await container.gatheringService.create(draft)
             existingDraftId = saved.id
             isDraft = true
             draftSaved = true

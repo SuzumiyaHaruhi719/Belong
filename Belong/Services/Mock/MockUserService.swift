@@ -153,6 +153,16 @@ final class MockUserService: UserServiceProtocol {
         return SampleData.posts.filter { $0.authorId == SampleData.currentUser.id }
     }
 
+    nonisolated func fetchUserPosts(userId: String) async throws -> [Post] {
+        try await Task.sleep(for: .milliseconds(600))
+        return SampleData.posts.filter { $0.authorId == userId }
+    }
+
+    nonisolated func fetchUserGatherings(userId: String) async throws -> [Gathering] {
+        try await Task.sleep(for: .milliseconds(600))
+        return SampleData.gatherings.filter { $0.hostId == userId }
+    }
+
     nonisolated func fetchCities(query: String) async throws -> [String] {
         try await Task.sleep(for: .milliseconds(400))
         let cities = SampleData.cities

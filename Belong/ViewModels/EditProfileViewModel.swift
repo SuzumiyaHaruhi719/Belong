@@ -21,6 +21,11 @@ final class EditProfileViewModel {
     var availableCities: [String] = []
     var availableSchools: [String] = []
 
+    // Tag presets
+    var availableBackgrounds: [String] = []
+    var availableLanguages: [String] = []
+    var availableInterests: [String] = []
+
     // Original values for change detection
     private var originalDisplayName = ""
     private var originalBio = ""
@@ -102,8 +107,11 @@ final class EditProfileViewModel {
         do {
             async let bg = userService.fetchTagPresets(category: .culturalBackground)
             async let lang = userService.fetchTagPresets(category: .language)
-            async let interests = userService.fetchTagPresets(category: .interestVibe)
-            _ = try await (bg, lang, interests)
+            async let inter = userService.fetchTagPresets(category: .interestVibe)
+            let (bgResult, langResult, interResult) = try await (bg, lang, inter)
+            availableBackgrounds = bgResult
+            availableLanguages = langResult
+            availableInterests = interResult
         } catch {
             self.error = error.localizedDescription
         }

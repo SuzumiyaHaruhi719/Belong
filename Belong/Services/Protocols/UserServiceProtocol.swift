@@ -24,6 +24,8 @@ protocol UserServiceProtocol: Sendable {
     func clearBrowseHistory() async throws
     func fetchMyGatherings(role: String?) async throws -> [Gathering]
     func fetchMyPosts() async throws -> [Post]
+    func fetchUserPosts(userId: String) async throws -> [Post]
+    func fetchUserGatherings(userId: String) async throws -> [Gathering]
     func fetchCities(query: String) async throws -> [String]
     func fetchSchools(city: String) async throws -> [String]
     func fetchTagPresets(category: TagCategory) async throws -> [String]

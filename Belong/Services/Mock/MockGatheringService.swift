@@ -142,4 +142,45 @@ final class MockGatheringService: GatheringServiceProtocol {
             }
         }
     }
+
+    // MARK: - Draft Support
+
+    nonisolated func fetchDrafts() async throws -> [Gathering] {
+        try await Task.sleep(for: .milliseconds(400))
+        return await MainActor.run {
+            gatherings.filter { $0.isDraft }
+        }
+    }
+
+    nonisolated func saveDraft(_ gathering: Gathering) async throws -> Gathering {
+        try await Task.sleep(for: .milliseconds(500))
+        return await MainActor.run {
+            var draft = gathering
+            draft.isDraft = true
+            if let index = gatherings.firstIndex(where: { $0.id == gathering.id }) {
+                gatherings[index] = draft
+            } else {
+                gatherings.insert(draft, at: 0)
+            }
+            return draft
+        }
+    }
+
+    nonisolated func publishDraft(gatheringId: String) async throws -> Gathering {
+        try await Task.sleep(for: .milliseconds(600))
+        return await MainActor.run {
+            if let index = gatherings.firstIndex(where: { $0.id == gatheringId }) {
+                gatherings[index].isDraft = false
+                return gatherings[index]
+            }
+            return gatherings[0]
+        }
+    }
+
+    nonisolated func deleteDraft(gatheringId: String) async throws {
+        try await Task.sleep(for: .milliseconds(400))
+        await MainActor.run {
+            gatherings.removeAll { $0.id == gatheringId && $0.isDraft }
+        }
+    }
 }

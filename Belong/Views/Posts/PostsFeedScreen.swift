@@ -32,6 +32,12 @@ struct PostsFeedScreen: View {
                 await vm.loadFeed()
             }
         }
+        .onAppear {
+            // Refresh feed when returning from other screens (e.g., after creating a post)
+            if viewModel != nil {
+                Task { await viewModel?.refresh() }
+            }
+        }
     }
 }
 
@@ -75,9 +81,9 @@ private struct PostsFeedContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 EmptyStateView(
-                    icon: "square.and.pencil",
-                    title: "No posts yet \u{1F4DD}",
-                    message: "Follow people or explore tags to see posts in your feed."
+                    icon: "square.grid.2x2",
+                    title: "No posts yet",
+                    message: "Follow people or explore cultural tags to fill your feed with stories from your community."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

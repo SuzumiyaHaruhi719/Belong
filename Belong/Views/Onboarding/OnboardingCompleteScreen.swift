@@ -25,12 +25,25 @@ struct OnboardingCompleteCelebration: View {
     @State private var animate = false
 
     var body: some View {
-        Text("🎉")
-            .font(.system(size: 80))
-            .scaleEffect(animate ? 1.0 : 0.3)
-            .opacity(animate ? 1.0 : 0.0)
-            .animation(.spring(response: 0.6, dampingFraction: 0.6), value: animate)
-            .task { animate = true }
+        // Checkmark in a warm circle — more intentional than a bare emoji
+        ZStack {
+            Circle()
+                .fill(BelongColor.primarySubtle)
+                .frame(width: 96, height: 96)
+                .scaleEffect(animate ? 1.0 : 0.5)
+                .opacity(animate ? 1.0 : 0)
+
+            Image(systemName: "checkmark")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(BelongColor.primary)
+                .scaleEffect(animate ? 1.0 : 0.3)
+                .opacity(animate ? 1.0 : 0)
+        }
+        .animation(BelongMotion.celebration, value: animate)
+        .task {
+            try? await Task.sleep(for: .milliseconds(150))
+            animate = true
+        }
     }
 }
 
@@ -39,7 +52,7 @@ struct OnboardingCompleteText: View {
 
     var body: some View {
         VStack(spacing: Spacing.md) {
-            Text("Welcome, \(displayName)!")
+            Text("Welcome, \(displayName)")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
                 .multilineTextAlignment(.center)
@@ -48,6 +61,7 @@ struct OnboardingCompleteText: View {
                 .font(BelongFont.body())
                 .foregroundStyle(BelongColor.textSecondary)
                 .multilineTextAlignment(.center)
+                .lineSpacing(3)
         }
     }
 
@@ -57,9 +71,9 @@ struct OnboardingCompleteText: View {
 
     private var subtitle: String {
         if viewModel.selectedCity.isEmpty {
-            return "You're all set to explore."
+            return "Your profile is ready. Time to discover gatherings and connect with your community."
         }
-        return "You're all set to explore \(viewModel.selectedCity)."
+        return "Your profile is ready. Time to discover what's happening in \(viewModel.selectedCity)."
     }
 }
 
@@ -68,21 +82,17 @@ struct OnboardingCompleteAction: View {
     @Environment(OnboardingViewModel.self) private var viewModel
     @State private var isLoading = false
 
+    @Environment(DependencyContainer.self) private var deps
+
     var body: some View {
         BelongButton(
-            title: "Start exploring \u{2192}",
+            title: "Start exploring",
             style: .primary,
             isFullWidth: true,
             isLoading: isLoading
         ) {
             isLoading = true
             Task {
-                // Try registered user first, then fetch from DB, then construct locally
-                if let user = viewModel.registeredUser {
-                    appState.completeOnboarding(user: user)
-                    return
-                }
-
                 // Get user ID from Supabase auth session
                 let userId: String
                 if let id = SupabaseManager.shared.currentUserId {
@@ -90,10 +100,26 @@ struct OnboardingCompleteAction: View {
                 } else if let session = try? await SupabaseManager.shared.client.auth.session {
                     userId = session.user.id.uuidString.lowercased()
                 } else {
-                    // No session at all — use email to look up user
                     userId = ""
                 }
 
+                // Persist onboarding profile data to DB before completing
+                if !userId.isEmpty {
+                    // Save display name, city, school
+                    let dn = viewModel.displayName.isEmpty ? viewModel.username : viewModel.displayName
+                    _ = try? await deps.userService.updateProfile(
+                        displayName: dn,
+                        bio: nil,
+                        city: viewModel.selectedCity.isEmpty ? nil : viewModel.selectedCity,
+                        school: viewModel.selectedSchool.isEmpty ? nil : viewModel.selectedSchool
+                    )
+                    // Save language
+                    if !viewModel.selectedLanguage.isEmpty {
+                        try? await deps.userService.updateProfile(["app_language": viewModel.selectedLanguage])
+                    }
+                }
+
+                // Fetch the freshly updated user from DB
                 if !userId.isEmpty,
                    let rows: [DBUser] = try? await SupabaseManager.shared.client.from("users")
                     .select().eq("id", value: userId).limit(1).execute().value,

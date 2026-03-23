@@ -34,6 +34,8 @@ final class CreatePostViewModel {
     // MARK: - Dependencies
 
     let container: DependencyContainer
+    var userCity: String = ""
+    var userSchool: String?
 
     init(container: DependencyContainer) {
         self.container = container
@@ -113,7 +115,9 @@ final class CreatePostViewModel {
                 imageURLs: selectedImageURLs,
                 tags: extractedTags,
                 visibility: visibility,
-                linkedGatheringId: linkedGatheringId
+                linkedGatheringId: linkedGatheringId,
+                city: userCity.isEmpty ? nil : userCity,
+                school: userSchool
             )
             isPublished = true
         } catch {

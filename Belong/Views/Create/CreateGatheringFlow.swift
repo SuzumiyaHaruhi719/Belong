@@ -56,6 +56,8 @@ struct CreateGatheringFlow: View {
     private var resolvedViewModel: CreateGatheringViewModel {
         if let vm = viewModel { return vm }
         let vm = CreateGatheringViewModel(container: container)
+        vm.userCity = appState.currentUser?.city ?? ""
+        vm.userSchool = appState.currentUser?.school
         Task { @MainActor in viewModel = vm }
         return vm
     }

@@ -180,6 +180,7 @@ struct GatheringDetailScrollContent: View {
                     GatheringDetailHostRow(
                         hostName: gathering.hostName,
                         hostEmoji: gathering.hostAvatarEmoji,
+                        hostAvatarURL: gathering.hostAvatarURL,
                         hostRating: gathering.hostRating
                     )
 
@@ -264,11 +265,12 @@ struct GatheringDetailTagChips: View {
 struct GatheringDetailHostRow: View {
     let hostName: String
     let hostEmoji: String
+    var hostAvatarURL: URL? = nil
     let hostRating: Double
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            AvatarView(emoji: hostEmoji, size: .medium)
+            AvatarView(imageURL: hostAvatarURL, emoji: hostEmoji, size: .medium)
             VStack(alignment: .leading, spacing: 2) {
                 Text(hostName)
                     .font(BelongFont.bodyMedium())

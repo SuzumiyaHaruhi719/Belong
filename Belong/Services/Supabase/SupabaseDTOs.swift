@@ -363,12 +363,14 @@ nonisolated struct AddCommentParams: Codable, Sendable {
 nonisolated struct SendDmParams: Codable, Sendable {
     let pConversationId: String
     let pContent: String?
+    let pMessageType: String
     let pImageUrl: String?
     let pSharedPostId: String?
 
     enum CodingKeys: String, CodingKey {
         case pConversationId = "p_conversation_id"
         case pContent = "p_content"
+        case pMessageType = "p_message_type"
         case pImageUrl = "p_image_url"
         case pSharedPostId = "p_shared_post_id"
     }

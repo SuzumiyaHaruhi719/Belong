@@ -10,6 +10,7 @@ struct ChipView: View {
             Button(action: action) {
                 ChipContent(title: title, isSelected: isSelected)
             }
+            .buttonStyle(BelongPressStyle())
             .accessibilityLabel("\(title), \(isSelected ? "selected" : "not selected")")
         } else {
             ChipContent(title: title, isSelected: isSelected)
@@ -23,16 +24,17 @@ struct ChipContent: View {
 
     var body: some View {
         Text(title)
-            .font(BelongFont.captionMedium())
+            .font(BelongFont.secondaryMedium())
             .foregroundStyle(isSelected ? BelongColor.tagChipText : BelongColor.textSecondary)
-            .padding(.horizontal, Spacing.md)
+            .padding(.horizontal, Spacing.base)
             .frame(height: Layout.chipHeight)
-            .background(isSelected ? BelongColor.tagChipBackground : Color.clear)
+            .background(isSelected ? BelongColor.tagChipBackground : BelongColor.surface)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.clear : BelongColor.border, lineWidth: 1)
+                    .stroke(isSelected ? BelongColor.tagChipBackground : BelongColor.border, lineWidth: 1)
             )
+            .animation(BelongMotion.quick, value: isSelected)
     }
 }
 

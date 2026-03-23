@@ -1,79 +1,53 @@
 import SwiftUI
 
 struct NotificationSettingsScreen: View {
-    @Environment(DependencyContainer.self) private var container
-    @State private var viewModel: SettingsViewModel?
-
-    var body: some View {
-        Group {
-            if let vm = viewModel {
-                NotificationSettingsContent(viewModel: vm)
-            } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .background(BelongColor.background)
-        .navigationTitle("Notifications")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            if viewModel == nil {
-                viewModel = SettingsViewModel(authService: container.authService)
-            }
-        }
-    }
-}
-
-// MARK: - Content
-
-private struct NotificationSettingsContent: View {
-    @Bindable var viewModel: SettingsViewModel
-
     var body: some View {
         List {
-            Section("Social") {
-                NotificationToggleRow(title: "Likes", icon: "heart", isOn: $viewModel.notifyLikes)
-                NotificationToggleRow(title: "Comments", icon: "bubble.left", isOn: $viewModel.notifyComments)
-                NotificationToggleRow(title: "Follows", icon: "person.badge.plus", isOn: $viewModel.notifyFollows)
-                NotificationToggleRow(title: "Mentions", icon: "at", isOn: $viewModel.notifyMentions)
+            Section {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    Image(systemName: "bell.badge")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(BelongColor.primary.opacity(0.7))
+                        .frame(width: 52, height: 52)
+                        .background(BelongColor.primarySubtle)
+                        .clipShape(Circle())
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, Spacing.sm)
+
+                    Text("Notification preferences")
+                        .font(BelongFont.h3())
+                        .foregroundStyle(BelongColor.textPrimary)
+
+                    Text("Granular controls for likes, comments, follows, and gathering reminders are coming soon. For now, manage notifications through your device settings.")
+                        .font(BelongFont.secondary())
+                        .foregroundStyle(BelongColor.textSecondary)
+                        .lineSpacing(3)
+                }
+                .listRowBackground(Color.clear)
             }
 
-            Section("Gatherings") {
-                NotificationToggleRow(title: "Gathering Reminders", icon: "bell", isOn: $viewModel.notifyGatheringReminders)
-            }
-
-            Section("Content") {
-                NotificationToggleRow(title: "New Posts", icon: "square.grid.2x2", isOn: $viewModel.notifyNewPosts)
-            }
-
-            Section("Messages") {
-                NotificationToggleRow(title: "Direct Messages", icon: "bubble.left.and.bubble.right", isOn: $viewModel.notifyDMs)
+            Section {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Label {
+                        Text("Open Device Settings")
+                            .font(BelongFont.body())
+                            .foregroundStyle(BelongColor.primary)
+                    } icon: {
+                        Image(systemName: "gear")
+                            .foregroundStyle(BelongColor.primary)
+                    }
+                }
             }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-    }
-}
-
-// MARK: - Toggle Row
-
-private struct NotificationToggleRow: View {
-    let title: String
-    let icon: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        Toggle(isOn: $isOn) {
-            Label {
-                Text(title)
-                    .font(BelongFont.body())
-                    .foregroundStyle(BelongColor.textPrimary)
-            } icon: {
-                Image(systemName: icon)
-                    .foregroundStyle(BelongColor.textSecondary)
-            }
-        }
-        .tint(BelongColor.primary)
+        .background(BelongColor.background)
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

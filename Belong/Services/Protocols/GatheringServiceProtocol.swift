@@ -16,4 +16,8 @@ protocol GatheringServiceProtocol: Sendable {
     func fetchAttendees(gatheringId: String) async throws -> [GatheringMember]
     func fetchTemplates() async throws -> [HostingTemplate]
     func search(query: String, city: String) async throws -> [Gathering]
+    func fetchDrafts() async throws -> [Gathering]
+    func saveDraft(_ gathering: Gathering) async throws -> Gathering
+    func publishDraft(gatheringId: String) async throws -> Gathering
+    func deleteDraft(gatheringId: String) async throws
 }

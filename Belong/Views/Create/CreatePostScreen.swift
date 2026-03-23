@@ -14,6 +14,7 @@ extension PostVisibility: SegmentOption {
 
 struct CreatePostScreen: View {
     @Environment(DependencyContainer.self) private var container
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: CreatePostViewModel?
 
@@ -69,6 +70,8 @@ struct CreatePostScreen: View {
     private var resolvedViewModel: CreatePostViewModel {
         if let vm = viewModel { return vm }
         let vm = CreatePostViewModel(container: container)
+        vm.userCity = appState.currentUser?.city ?? ""
+        vm.userSchool = appState.currentUser?.school
         Task { @MainActor in viewModel = vm }
         return vm
     }

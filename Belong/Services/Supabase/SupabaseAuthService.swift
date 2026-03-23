@@ -9,12 +9,20 @@ final class SupabaseAuthService: AuthServiceProtocol {
     func checkEmail(_ email: String) async throws -> (available: Bool, validEdu: Bool) {
         let isEdu = email.lowercased().hasSuffix(".edu") || email.lowercased().hasSuffix(".edu.au")
         let existing: [DBUser] = try await manager.client.from("users")
-            .select("id")
+            .select("id, city, school")
             .eq("email", value: email.lowercased())
             .limit(1)
             .execute()
             .value
-        return (available: existing.isEmpty, validEdu: isEdu)
+        if let row = existing.first {
+            // User row exists. If they completed onboarding (city+school set),
+            // the email is truly taken — tell them to log in.
+            // If onboarding is incomplete (partial registration from a previous
+            // abandoned attempt), allow re-registration.
+            let onboardingComplete = !(row.city ?? "").isEmpty && !(row.school ?? "").isEmpty
+            return (available: !onboardingComplete, validEdu: isEdu)
+        }
+        return (available: true, validEdu: isEdu)
     }
 
     func sendOTP(to email: String) async throws {
@@ -36,9 +44,16 @@ final class SupabaseAuthService: AuthServiceProtocol {
 
     func checkUsername(_ username: String) async throws -> Bool {
         let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let existing: [DBUser] = try await manager.client.from("users")
+        // Exclude the current user's own row — the handle_new_user trigger
+        // auto-generates a username, and we don't want it to block the user
+        // from choosing their real username during registration.
+        var query = manager.client.from("users")
             .select("id")
             .eq("username", value: trimmed)
+        if let myId = manager.currentUserId {
+            query = query.neq("id", value: myId)
+        }
+        let existing: [DBUser] = try await query
             .limit(1)
             .execute()
             .value
@@ -46,15 +61,16 @@ final class SupabaseAuthService: AuthServiceProtocol {
     }
 
     func register(email: String, password: String, username: String) async throws -> User {
-        let response = try await manager.client.auth.signUp(
-            email: email.lowercased(),
+        // After OTP verification, the user already exists in auth.users
+        // (created by signInWithOTP). Set their password and metadata
+        // via auth.update — signUp would silently fail on an existing email.
+        try await manager.client.auth.update(user: .init(
             password: password,
             data: ["username": .string(username.lowercased())]
-        )
-        let authUser = response.user
-        // The handle_new_user trigger creates the profile row automatically.
-        // Update with username since trigger may not set it from metadata.
-        let userId = authUser.id.uuidString.lowercased()
+        ))
+
+        // Update the public.users row (created by handle_new_user trigger)
+        let userId = try manager.requireUserId()
         try await manager.client.from("users")
             .update(UsernameUpdate(username: username.lowercased(), displayName: username))
             .eq("id", value: userId)
@@ -77,15 +93,12 @@ final class SupabaseAuthService: AuthServiceProtocol {
     }
 
     func deleteAccount() async throws {
-        guard let userId = manager.currentUserId else {
+        guard manager.currentUserId != nil else {
             throw SupabaseServiceError.notFound
         }
-        // Delete user data from the users table
-        try await manager.client.from("users")
-            .delete()
-            .eq("id", value: userId)
-            .execute()
-        // Sign out after deletion
+        // Delete from auth.users via RPC (cascades to public.users and all related data)
+        try await manager.client.rpc("delete_own_account").execute()
+        // Sign out to clear local session
         try await manager.client.auth.signOut()
     }
 

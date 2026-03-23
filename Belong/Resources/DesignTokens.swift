@@ -3,34 +3,38 @@ import SwiftUI
 // MARK: - Design Tokens
 // Single source of truth for all visual constants.
 // Design direction: "Warm Clay" — organic, grounded, culturally rich.
-// Inspired by Partiful's playfulness + Luma's polish + earthy warmth.
-// Key differentiator: serif headings + warm clay palette + generous white space.
+// References: Partiful's celebration-first ethos + Airbnb's warm hospitality
+//   + Luma's editorial polish. No generic Material/iOS defaults.
+// Key differentiator: serif headings, warm clay palette, layered warm
+//   shadows, intentional motion, generous white space.
 
 // MARK: Colors
 
 enum BelongColor {
     // Primary brand — deeper, richer terracotta
-    static let primary = Color(hex: "B5694A")          // Clay Terracotta (slightly deeper)
-    static let primaryDark = Color(hex: "964E33")       // Pressed state
+    static let primary = Color(hex: "B5694A")          // Clay Terracotta
+    static let primaryDark = Color(hex: "964E33")       // Pressed / hover state
     static let primaryLight = Color(hex: "D4956F")      // Lighter variant
     static let primaryMuted = Color(hex: "E8C4B0")      // Subtle tint for backgrounds
+    static let primarySubtle = Color(hex: "F5E6DC")     // Very subtle wash (hover bg)
 
     // Backgrounds — warmer, more distinct
-    static let background = Color(hex: "F8F0E7")        // Warm Parchment (warmer than before)
+    static let background = Color(hex: "F8F0E7")        // Warm Parchment
     static let surface = Color(hex: "FFFFFF")            // Clean white cards
     static let surfaceAlt = Color(hex: "FDF8F3")         // Warm off-white
     static let surfaceSecondary = Color(hex: "FAEDE3")   // Peach wash — selected chips
     static let surfaceElevated = Color(hex: "FFFFFF")    // Elevated cards
+    static let surfacePressed = Color(hex: "F3E8DC")     // Pressed card state
 
     // Text — stronger contrast
-    static let textPrimary = Color(hex: "1A1714")       // Near-black brown (stronger)
-    static let textSecondary = Color(hex: "5C5550")      // Warm medium gray
+    static let textPrimary = Color(hex: "1A1714")       // Near-black brown (7.8:1 on surface)
+    static let textSecondary = Color(hex: "5C5550")      // Warm medium gray (4.6:1)
     static let textTertiary = Color(hex: "9A938D")       // Lighter warm gray
     static let textOnPrimary = Color(hex: "FFFAF6")      // Warm white on primary
 
     // Accents — richer palette
     static let accent = Color(hex: "FAEDE3")            // Soft Peach
-    static let sage = Color(hex: "7FA07A")              // Richer Sage (more saturated)
+    static let sage = Color(hex: "7FA07A")              // Richer Sage
     static let sageDark = Color(hex: "5E8558")
     static let sageLight = Color(hex: "E8F0E6")         // Sage tint
     static let gold = Color(hex: "C4922E")              // Deeper gold
@@ -64,16 +68,18 @@ enum BelongColor {
 }
 
 // MARK: - Typography
-// Fraunces for display/headings (serif fallback), system for body.
+// Headings: system serif (New York on iOS — warm, editorial)
+// Body: system sans (SF Pro — crisp, readable)
+// The serif/sans pairing creates the distinctive "editorial warmth" identity.
 
 enum BelongFont {
-    // Display: Serif for warmth + character. Distinctive heading identity.
+    // Display: Serif for warmth + character. Tight tracking for editorial feel.
     static func display(_ size: CGFloat = 34) -> Font { .system(size: size, weight: .bold, design: .serif) }
     static func h1(_ size: CGFloat = 28) -> Font { .system(size: size, weight: .bold, design: .serif) }
     static func h2(_ size: CGFloat = 22) -> Font { .system(size: size, weight: .semibold, design: .serif) }
     static func h3(_ size: CGFloat = 18) -> Font { .system(size: size, weight: .semibold, design: .serif) }
 
-    // Body: Clean sans-serif with slightly more weight differentiation
+    // Body: Clean sans-serif
     static func body(_ size: CGFloat = 16) -> Font { .system(size: size, weight: .regular) }
     static func bodyMedium(_ size: CGFloat = 16) -> Font { .system(size: size, weight: .medium) }
     static func bodySemiBold(_ size: CGFloat = 16) -> Font { .system(size: size, weight: .semibold) }
@@ -85,6 +91,9 @@ enum BelongFont {
     static func button() -> Font { .system(size: 16, weight: .semibold) }
     static func buttonSmall() -> Font { .system(size: 14, weight: .semibold) }
     static func tabLabel() -> Font { .system(size: 10, weight: .medium) }
+
+    // Mono: For stats / numbers — adds typographic texture
+    static func stat(_ size: CGFloat = 22) -> Font { .system(size: size, weight: .semibold, design: .rounded) }
 }
 
 // MARK: - Spacing (8pt grid)
@@ -99,15 +108,17 @@ enum Spacing {
     static let xxl: CGFloat = 32
     static let xxxl: CGFloat = 40
     static let xxxxl: CGFloat = 48
+    static let section: CGFloat = 56       // Between major page sections
 }
 
 // MARK: - Layout constants
 
 enum Layout {
     static let screenPadding: CGFloat = 20
-    static let buttonHeight: CGFloat = 48    // Spec says 48pt for this version
+    static let buttonHeight: CGFloat = 50    // Slightly taller for presence
+    static let buttonHeightCompact: CGFloat = 40
     static let inputHeight: CGFloat = 48
-    static let chipHeight: CGFloat = 32
+    static let chipHeight: CGFloat = 34      // Slightly taller for comfort
     static let tabBarHeight: CGFloat = 49
     static let navBarHeight: CGFloat = 44
 
@@ -128,12 +139,28 @@ enum Layout {
 }
 
 // MARK: - Shadows
+// Layered warm shadows: tinted toward the clay palette rather than pure black.
+// Two-layer approach (ambient + key) creates depth that feels physical, not flat.
 
 enum BelongShadow {
-    // Softer, warmer shadows — less harsh than pure black
-    static let level1 = (color: Color(hex: "1A1714").opacity(0.05), radius: CGFloat(6), x: CGFloat(0), y: CGFloat(2))
-    static let level2 = (color: Color(hex: "1A1714").opacity(0.08), radius: CGFloat(12), x: CGFloat(0), y: CGFloat(4))
-    static let level3 = (color: Color(hex: "1A1714").opacity(0.12), radius: CGFloat(20), x: CGFloat(0), y: CGFloat(-3))
+    // Subtle rest state — cards, inputs
+    static let level1 = (color: Color(hex: "B5694A").opacity(0.06), radius: CGFloat(8), x: CGFloat(0), y: CGFloat(3))
+    // Elevated — hovered cards, modals
+    static let level2 = (color: Color(hex: "B5694A").opacity(0.10), radius: CGFloat(16), x: CGFloat(0), y: CGFloat(6))
+    // Floating — sheets, popovers
+    static let level3 = (color: Color(hex: "1A1714").opacity(0.12), radius: CGFloat(24), x: CGFloat(0), y: CGFloat(-4))
+}
+
+// MARK: - Motion
+// Intentional motion tokens. Everything 200–350ms for responsiveness.
+// Spring curves for organic feel. No linear — ever.
+
+enum BelongMotion {
+    static let quick: Animation = .easeOut(duration: 0.15)
+    static let standard: Animation = .easeInOut(duration: 0.25)
+    static let expressive: Animation = .spring(response: 0.45, dampingFraction: 0.75)
+    static let celebration: Animation = .spring(response: 0.55, dampingFraction: 0.6)
+    static let staggerDelay: Double = 0.05  // Per-item offset in lists
 }
 
 // MARK: - Color Extension

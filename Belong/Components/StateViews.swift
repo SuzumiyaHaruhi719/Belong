@@ -1,26 +1,22 @@
 import SwiftUI
 
 // MARK: - SkeletonView
+// Gentle pulse instead of sliding gradient — feels calmer, less "loading screen".
 
 struct SkeletonView: View {
     var width: CGFloat? = nil
     var height: CGFloat = 16
     var cornerRadius: CGFloat = Layout.radiusSm
-    @State private var isAnimating = false
+    @State private var opacity: Double = 0.4
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(
-                LinearGradient(
-                    colors: [BelongColor.skeleton, BelongColor.skeletonHighlight, BelongColor.skeleton],
-                    startPoint: isAnimating ? .trailing : .leading,
-                    endPoint: isAnimating ? .leading : .trailing
-                )
-            )
+            .fill(BelongColor.skeleton)
             .frame(width: width, height: height)
+            .opacity(opacity)
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    isAnimating = true
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    opacity = 1.0
                 }
             }
     }
@@ -29,6 +25,8 @@ struct SkeletonView: View {
 // MARK: - SkeletonCard
 
 struct SkeletonCard: View {
+    var staggerIndex: Int = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             SkeletonView(height: Layout.cardImageHeight, cornerRadius: 0)
@@ -47,10 +45,14 @@ struct SkeletonCard: View {
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
+        .opacity(0.001)
+        .onAppear {} // Stagger handled by parent
     }
 }
 
 // MARK: - EmptyStateView
+// Warmer, more encouraging. Serif title + supportive body copy.
+// Icon uses a soft circle backing instead of floating bare.
 
 struct EmptyStateView: View {
     let icon: String
@@ -58,25 +60,46 @@ struct EmptyStateView: View {
     let message: String
     var ctaTitle: String? = nil
     var onCTA: (() -> Void)? = nil
+    @State private var appeared = false
 
     var body: some View {
-        VStack(spacing: Spacing.base) {
+        VStack(spacing: Spacing.lg) {
+            // Icon with soft circular backing
             Image(systemName: icon)
-                .font(.system(size: 48))
-                .foregroundStyle(BelongColor.textTertiary)
-            Text(title)
-                .font(BelongFont.h3())
-                .foregroundStyle(BelongColor.textPrimary)
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(BelongFont.secondary())
-                .foregroundStyle(BelongColor.textSecondary)
-                .multilineTextAlignment(.center)
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(BelongColor.primary.opacity(0.7))
+                .frame(width: 64, height: 64)
+                .background(BelongColor.primarySubtle)
+                .clipShape(Circle())
+                .scaleEffect(appeared ? 1.0 : 0.8)
+                .opacity(appeared ? 1.0 : 0)
+
+            VStack(spacing: Spacing.sm) {
+                Text(title)
+                    .font(BelongFont.h3())
+                    .foregroundStyle(BelongColor.textPrimary)
+                    .multilineTextAlignment(.center)
+
+                Text(message)
+                    .font(BelongFont.secondary())
+                    .foregroundStyle(BelongColor.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+            }
+            .opacity(appeared ? 1.0 : 0)
+
             if let ctaTitle = ctaTitle, let onCTA = onCTA {
                 BelongButton(title: ctaTitle, style: .primary, action: onCTA)
+                    .opacity(appeared ? 1.0 : 0)
             }
         }
-        .padding(Spacing.xxl)
+        .padding(.horizontal, Spacing.xxl)
+        .padding(.vertical, Spacing.xxxl)
+        .onAppear {
+            withAnimation(BelongMotion.expressive) {
+                appeared = true
+            }
+        }
     }
 }
 
@@ -87,19 +110,31 @@ struct ErrorStateView: View {
     var onRetry: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: Spacing.base) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(BelongColor.error)
-            Text(message)
-                .font(BelongFont.secondary())
-                .foregroundStyle(BelongColor.textSecondary)
-                .multilineTextAlignment(.center)
+        VStack(spacing: Spacing.lg) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(BelongColor.error.opacity(0.7))
+                .frame(width: 64, height: 64)
+                .background(BelongColor.errorLight)
+                .clipShape(Circle())
+
+            VStack(spacing: Spacing.sm) {
+                Text("Something went wrong")
+                    .font(BelongFont.h3())
+                    .foregroundStyle(BelongColor.textPrimary)
+                Text(message)
+                    .font(BelongFont.secondary())
+                    .foregroundStyle(BelongColor.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+            }
+
             if let onRetry = onRetry {
-                BelongButton(title: "Retry", style: .secondary, action: onRetry)
+                BelongButton(title: "Try again", style: .secondary, action: onRetry)
             }
         }
-        .padding(Spacing.xxl)
+        .padding(.horizontal, Spacing.xxl)
+        .padding(.vertical, Spacing.xxxl)
     }
 }
 
