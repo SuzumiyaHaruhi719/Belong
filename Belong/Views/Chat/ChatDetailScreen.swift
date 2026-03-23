@@ -30,6 +30,9 @@ struct ChatDetailScreen: View {
                 await vm.loadMessages(conversationId: conversation.id)
             }
         }
+        .onDisappear {
+            Task { await viewModel?.unsubscribe() }
+        }
     }
 }
 

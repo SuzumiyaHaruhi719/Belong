@@ -84,6 +84,20 @@ final class ChatListViewModel {
         isLoading = false
     }
 
+    /// Auto-refresh conversations every 10 seconds while on Chat tab
+    func startAutoRefresh() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { break }
+            do {
+                let freshConvos = try await chatService.fetchConversations()
+                conversations = freshConvos
+            } catch {
+                // Silent refresh failure — user can still pull-to-refresh
+            }
+        }
+    }
+
     func markAllNotificationsRead() async {
         do {
             try await notificationService.markAllAsRead()

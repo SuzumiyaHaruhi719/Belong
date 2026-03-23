@@ -32,6 +32,10 @@ struct ChatListScreen: View {
                 await vm.loadAll()
             }
         }
+        .task(id: "autoRefresh") {
+            // Auto-refresh chat list every 10 seconds
+            await viewModel?.startAutoRefresh()
+        }
     }
 }
 
