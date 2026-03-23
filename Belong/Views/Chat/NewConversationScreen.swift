@@ -51,7 +51,7 @@ struct NewConversationScreen: View {
                             } label: {
                                 UserRow(
                                     avatarURL: user.avatarURL,
-                                    avatarEmoji: SampleData.avatarEmoji(for: user.id),
+                                    avatarEmoji: "👤",
                                     name: user.displayName,
                                     subtitle: "@\(user.username)"
                                 )
@@ -86,7 +86,7 @@ struct NewConversationScreen: View {
         do {
             searchResults = try await container.chatService.searchUsers(query: query)
             // Filter out current user
-            searchResults.removeAll { $0.id == SampleData.currentUser.id }
+            searchResults.removeAll { $0.id == SupabaseManager.shared.currentUserId }
         } catch {
             searchResults = []
         }

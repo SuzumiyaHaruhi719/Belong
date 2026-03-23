@@ -165,7 +165,7 @@ private struct UserProfileHeader: View {
 
     var body: some View {
         VStack(spacing: Spacing.md) {
-            AvatarView(imageURL: user.avatarURL, emoji: SampleData.avatarEmoji(for: user.id), size: .xlarge)
+            AvatarView(imageURL: user.avatarURL, emoji: "👤", size: .xlarge)
 
             Text(user.displayName)
                 .font(BelongFont.h1())

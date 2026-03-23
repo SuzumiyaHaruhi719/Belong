@@ -63,7 +63,7 @@ private struct ChatInfoDMSections: View {
     @Environment(\.dismiss) private var dismiss
 
     private var otherMember: ConversationMemberInfo? {
-        conversation.members.first { $0.userId != SampleData.currentUser.id }
+        conversation.members.first { $0.userId != SupabaseManager.shared.currentUserId }
     }
 
     var body: some View {

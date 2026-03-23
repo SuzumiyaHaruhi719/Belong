@@ -78,7 +78,7 @@ private struct PostLikesList: View {
 
 private extension User {
     var avatarEmoji: String {
-        SampleData.avatarEmoji(for: id)
+        "👤"
     }
 }
 

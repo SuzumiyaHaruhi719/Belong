@@ -79,7 +79,7 @@ private struct EditProfileAvatarSection: View {
     var body: some View {
         VStack(spacing: Spacing.sm) {
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(emoji: SampleData.avatarEmoji(for: SampleData.currentUser.id), size: .xlarge)
+                AvatarView(emoji: "👤", size: .xlarge)
                 Image(systemName: "camera.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(BelongColor.textOnPrimary)

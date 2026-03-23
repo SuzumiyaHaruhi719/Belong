@@ -158,7 +158,7 @@ private struct ConnectionUserRow: View {
 
     var body: some View {
         UserRow(
-            avatarEmoji: SampleData.avatarEmoji(for: user.id),
+            avatarEmoji: "👤",
             name: user.displayName,
             subtitle: "@\(user.username)",
             trailingActionTitle: trailingTitle,

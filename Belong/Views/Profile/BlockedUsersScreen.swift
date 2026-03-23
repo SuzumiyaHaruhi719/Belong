@@ -50,7 +50,7 @@ private struct BlockedUsersContent: View {
                     LazyVStack(spacing: 0) {
                         ForEach(viewModel.blockedUsers) { user in
                             UserRow(
-                                avatarEmoji: SampleData.avatarEmoji(for: user.id),
+                                avatarEmoji: "👤",
                                 name: user.displayName,
                                 subtitle: "@\(user.username)",
                                 trailingActionTitle: "Unblock",

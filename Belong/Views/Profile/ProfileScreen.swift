@@ -190,7 +190,7 @@ private struct ProfileCoverBanner: View {
                         } else {
                             AvatarView(
                                 imageURL: user.avatarURL,
-                                emoji: SampleData.avatarEmoji(for: user.id),
+                                emoji: "👤",
                                 size: .xlarge
                             )
                             .frame(width: 68, height: 68)
