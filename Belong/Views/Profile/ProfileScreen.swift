@@ -265,20 +265,25 @@ private struct ProfileCoverBanner: View {
 
     private var defaultGradient: some View {
         ZStack {
+            // Deep warm gradient — no yellow
             LinearGradient(
                 colors: [
-                    Color(red: 0.77, green: 0.48, blue: 0.35).opacity(0.6),
-                    Color(red: 0.83, green: 0.63, blue: 0.24).opacity(0.4),
-                    BelongColor.primary.opacity(0.25),
+                    Color(red: 0.17, green: 0.15, blue: 0.14), // dark brown
+                    Color(red: 0.30, green: 0.22, blue: 0.18), // warm dark
+                    Color(red: 0.45, green: 0.30, blue: 0.22), // terracotta dark
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            // Subtle texture overlay for depth
-            LinearGradient(
-                colors: [.white.opacity(0.08), .clear, .black.opacity(0.05)],
-                startPoint: .top,
-                endPoint: .bottom
+            // Subtle noise-like variation
+            RadialGradient(
+                colors: [
+                    Color(red: 0.55, green: 0.35, blue: 0.25).opacity(0.3),
+                    .clear
+                ],
+                center: .topTrailing,
+                startRadius: 20,
+                endRadius: 200
             )
         }
     }

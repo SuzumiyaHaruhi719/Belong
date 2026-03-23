@@ -298,15 +298,26 @@ private struct UserProfileBanner: View {
     }
 
     private var defaultGradient: some View {
-        LinearGradient(
-            colors: [
-                BelongColor.primary.opacity(0.35),
-                BelongColor.surfaceSecondary,
-                BelongColor.background
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.17, green: 0.15, blue: 0.14),
+                    Color(red: 0.30, green: 0.22, blue: 0.18),
+                    Color(red: 0.45, green: 0.30, blue: 0.22),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            RadialGradient(
+                colors: [
+                    Color(red: 0.55, green: 0.35, blue: 0.25).opacity(0.3),
+                    .clear
+                ],
+                center: .topTrailing,
+                startRadius: 20,
+                endRadius: 200
+            )
+        }
     }
 }
 
