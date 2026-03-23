@@ -132,6 +132,9 @@ final class OnboardingViewModel {
         validateEmail()
         guard emailError == nil, isEmailValid else { return }
         isSendingOTP = true
+        otpCode = ""
+        otpVerified = false
+        otpError = nil
         defer { isSendingOTP = false }
         do {
             try await deps.authService.sendOTP(to: email)
