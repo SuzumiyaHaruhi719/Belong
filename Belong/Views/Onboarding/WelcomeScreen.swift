@@ -21,25 +21,39 @@ struct WelcomeScreen: View {
 
 struct WelcomeHero: View {
     var body: some View {
-        VStack(spacing: Spacing.base) {
-            Text("Belong")
-                .font(BelongFont.display(48))
-                .foregroundStyle(BelongColor.primary)
+        VStack(spacing: Spacing.lg) {
+            // App wordmark with warm accent line
+            VStack(spacing: Spacing.md) {
+                Text("Belong")
+                    .font(.system(size: 52, weight: .bold, design: .serif))
+                    .foregroundStyle(BelongColor.primary)
+                    .tracking(-0.5)
 
-            Text("Find your people. Share your story.")
-                .font(BelongFont.body())
+                // Decorative accent line
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(BelongColor.primaryMuted)
+                    .frame(width: 48, height: 3)
+            }
+
+            Text("Find your people.\nShare your story.")
+                .font(BelongFont.h2())
                 .foregroundStyle(BelongColor.textSecondary)
                 .multilineTextAlignment(.center)
+                .lineSpacing(4)
 
-            HStack(spacing: Spacing.xs) {
+            // Social proof badge
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: "person.2.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundStyle(BelongColor.sage)
                 Text("Join 4,200+ students")
                     .font(BelongFont.secondaryMedium())
                     .foregroundStyle(BelongColor.textSecondary)
             }
-            .padding(.top, Spacing.sm)
+            .padding(.horizontal, Spacing.base)
+            .padding(.vertical, Spacing.sm)
+            .background(BelongColor.sageLight)
+            .clipShape(Capsule())
         }
     }
 }

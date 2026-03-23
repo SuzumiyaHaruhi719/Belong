@@ -56,6 +56,10 @@ struct BelongButtonContent: View {
         .background(backgroundColor)
         .overlay(borderOverlay)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .shadow(
+            color: style == .primary ? BelongColor.primary.opacity(0.2) : .clear,
+            radius: 6, x: 0, y: 3
+        )
     }
 
     private var foregroundColor: Color {

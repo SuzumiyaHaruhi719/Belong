@@ -17,11 +17,15 @@ struct GatheringCard: View {
         }
         .background(BelongColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: Layout.radiusLg))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusLg)
+                .stroke(BelongColor.border.opacity(0.5), lineWidth: 0.5)
+        )
         .shadow(
-            color: BelongShadow.level1.color,
-            radius: BelongShadow.level1.radius,
-            x: BelongShadow.level1.x,
-            y: BelongShadow.level1.y
+            color: BelongShadow.level2.color,
+            radius: BelongShadow.level2.radius,
+            x: BelongShadow.level2.x,
+            y: BelongShadow.level2.y
         )
     }
 }
@@ -68,9 +72,14 @@ struct GatheringCardImagePlaceholder: View {
 
     var body: some View {
         ZStack {
-            BelongColor.surfaceSecondary
+            LinearGradient(
+                colors: [BelongColor.primaryMuted.opacity(0.4), BelongColor.surfaceSecondary],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             Text(emoji)
-                .font(.system(size: 48))
+                .font(.system(size: 52))
+                .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
