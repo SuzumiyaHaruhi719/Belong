@@ -71,11 +71,21 @@ struct TemplatePickerCard: View {
     let template: HostingTemplate
     let action: () -> Void
 
+    private static let templateIcons: [String: String] = [
+        "template-food": "fork.knife.circle.fill",
+        "template-study": "book.circle.fill",
+        "template-hangout": "party.popper.fill",
+        "template-cultural": "globe.americas.fill",
+        "template-faith": "hands.and.sparkles.fill",
+        "template-active": "figure.run.circle.fill",
+    ]
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: Spacing.sm) {
-                Text(template.emoji)
-                    .font(.system(size: 48))
+                Image(systemName: Self.templateIcons[template.id] ?? "questionmark.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(BelongColor.primary)
                     .frame(height: 56)
 
                 Text(template.title)
