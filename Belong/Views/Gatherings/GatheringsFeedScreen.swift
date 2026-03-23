@@ -180,6 +180,16 @@ struct GatheringsFeedLoadedContent: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, Layout.screenPadding)
+                    .onAppear {
+                        if gathering.id == viewModel.filteredGatherings.last?.id {
+                            Task { await viewModel.loadMore() }
+                        }
+                    }
+                }
+                if viewModel.isLoadingMore {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(Spacing.md)
                 }
             }
             .padding(.bottom, Spacing.xxl)

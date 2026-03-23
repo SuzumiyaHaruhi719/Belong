@@ -1,4 +1,6 @@
 import SwiftUI
+import Supabase
+import Auth
 
 struct SettingsScreen: View {
     @Environment(DependencyContainer.self) private var container
@@ -172,11 +174,87 @@ private struct SettingsNavigationRow: View {
 
     var body: some View {
         NavigationLink {
-            Text(title)
-                .navigationTitle(title)
+            ChangePasswordScreen()
         } label: {
             SettingsRowLabel(title: title, icon: icon)
         }
+    }
+}
+
+// MARK: - Change Password Screen
+
+private struct ChangePasswordScreen: View {
+    @State private var newPassword = ""
+    @State private var confirmPassword = ""
+    @State private var isUpdating = false
+    @State private var message: String?
+    @State private var isSuccess = false
+
+    private var passwordsMatch: Bool {
+        !newPassword.isEmpty && newPassword == confirmPassword
+    }
+
+    private var isPasswordStrong: Bool {
+        newPassword.count >= 8
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                SecureField("New password", text: $newPassword)
+                SecureField("Confirm new password", text: $confirmPassword)
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !newPassword.isEmpty && !isPasswordStrong {
+                        Text("Password must be at least 8 characters")
+                            .foregroundStyle(BelongColor.error)
+                    }
+                    if !confirmPassword.isEmpty && !passwordsMatch {
+                        Text("Passwords don't match")
+                            .foregroundStyle(BelongColor.error)
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    Task { await updatePassword() }
+                } label: {
+                    HStack {
+                        Text("Update Password")
+                        Spacer()
+                        if isUpdating { ProgressView() }
+                    }
+                }
+                .disabled(!passwordsMatch || !isPasswordStrong || isUpdating)
+            }
+
+            if let message {
+                Section {
+                    Text(message)
+                        .foregroundStyle(isSuccess ? BelongColor.success : BelongColor.error)
+                        .font(BelongFont.secondary())
+                }
+            }
+        }
+        .navigationTitle("Change Password")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func updatePassword() async {
+        isUpdating = true
+        message = nil
+        do {
+            try await SupabaseManager.shared.client.auth.update(user: .init(password: newPassword))
+            isSuccess = true
+            message = "Password updated successfully"
+            newPassword = ""
+            confirmPassword = ""
+        } catch {
+            isSuccess = false
+            message = error.localizedDescription
+        }
+        isUpdating = false
     }
 }
 

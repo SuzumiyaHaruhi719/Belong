@@ -11,6 +11,8 @@ struct UserProfileScreen: View {
     @State private var isFollowing = false
     @State private var selectedTab: ProfileTab = .posts
     @State private var showOverflowMenu = false
+    @State private var showBlockConfirm = false
+    @State private var showReportSheet = false
 
     var body: some View {
         Group {
@@ -39,12 +41,12 @@ struct UserProfileScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button(role: .destructive) {
-                        Task { await blockUser() }
+                        showBlockConfirm = true
                     } label: {
                         Label("Block", systemImage: "slash.circle")
                     }
                     Button(role: .destructive) {
-                        // Report action placeholder
+                        showReportSheet = true
                     } label: {
                         Label("Report", systemImage: "flag")
                     }
@@ -56,6 +58,14 @@ struct UserProfileScreen: View {
         }
         .task {
             await loadUser()
+        }
+        .alert("Block this user?", isPresented: $showBlockConfirm) {
+            Button("Block", role: .destructive) {
+                Task { await blockUser() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They won't be able to see your profile or content. You can unblock them later.")
         }
     }
 

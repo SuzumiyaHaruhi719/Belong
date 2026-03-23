@@ -25,7 +25,7 @@ final class CreatePostViewModel {
     }
 
     var canPublish: Bool {
-        !selectedImageURLs.isEmpty
+        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !selectedImageURLs.isEmpty
     }
 
     var imageCount: Int { selectedImageURLs.count }

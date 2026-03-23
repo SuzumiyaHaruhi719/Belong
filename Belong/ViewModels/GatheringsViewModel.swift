@@ -7,6 +7,9 @@ final class GatheringsViewModel {
     var gatherings: [Gathering] = []
     var topPick: Gathering?
     var isLoading = false
+    var isLoadingMore = false
+    var hasMorePages = true
+    var currentPage = 0
     var error: String?
     var selectedFilter: String? = nil
 
@@ -60,7 +63,29 @@ final class GatheringsViewModel {
     }
 
     func refresh() async {
+        currentPage = 0
+        hasMorePages = true
         await loadFeed()
+    }
+
+    func loadMore() async {
+        guard !isLoadingMore, hasMorePages else { return }
+        isLoadingMore = true
+        let nextPage = currentPage + 1
+        do {
+            let more = try await container.gatheringService.fetchFeed(city: "", page: nextPage, filter: nil)
+            if more.isEmpty {
+                hasMorePages = false
+            } else {
+                let existingIds = Set(gatherings.map(\.id))
+                let newItems = more.filter { !existingIds.contains($0.id) }
+                gatherings.append(contentsOf: newItems)
+                currentPage = nextPage
+            }
+        } catch {
+            // Silent pagination failure — user can pull to refresh
+        }
+        isLoadingMore = false
     }
 
     func toggleBookmark(id: String) {

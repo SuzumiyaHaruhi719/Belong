@@ -68,7 +68,8 @@ struct ShareSheet: View {
     }
 
     private func shareToContact(_ contact: ShareContact) {
-        // DM share placeholder
+        // Copy link and show success — DM integration deferred to v1.1
+        UIPasteboard.general.url = shareURL
         showToastAndDismiss()
     }
 
