@@ -33,7 +33,7 @@ final class CreatePostViewModel {
 
     // MARK: - Dependencies
 
-    private let container: DependencyContainer
+    let container: DependencyContainer
 
     init(container: DependencyContainer) {
         self.container = container

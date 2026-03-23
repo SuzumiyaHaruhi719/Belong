@@ -348,6 +348,8 @@ private struct CreatePostVisibilitySection: View {
 
 private struct CreatePostLinkGatheringSection: View {
     @Bindable var viewModel: CreatePostViewModel
+    @State private var showPicker = false
+    @State private var linkedTitle: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -356,12 +358,11 @@ private struct CreatePostLinkGatheringSection: View {
                 .foregroundStyle(BelongColor.textSecondary)
 
             Button {
-                // In production: show gathering picker
-                // For mock: toggle linked gathering
                 if viewModel.linkedGatheringId != nil {
                     viewModel.linkedGatheringId = nil
+                    linkedTitle = nil
                 } else {
-                    viewModel.linkedGatheringId = SampleData.gatheringIdPho
+                    showPicker = true
                 }
             } label: {
                 HStack(spacing: Spacing.sm) {
@@ -369,10 +370,11 @@ private struct CreatePostLinkGatheringSection: View {
                         .font(.system(size: 20))
                         .foregroundStyle(BelongColor.primary)
 
-                    if viewModel.linkedGatheringId != nil {
-                        Text("Gathering linked")
+                    if let title = linkedTitle, viewModel.linkedGatheringId != nil {
+                        Text(title)
                             .font(BelongFont.secondary())
                             .foregroundStyle(BelongColor.textPrimary)
+                            .lineLimit(1)
                         Spacer()
                         Image(systemName: "xmark")
                             .font(.system(size: 12, weight: .bold))
@@ -397,6 +399,113 @@ private struct CreatePostLinkGatheringSection: View {
             }
             .buttonStyle(.plain)
         }
+        .sheet(isPresented: $showPicker) {
+            GatheringPickerSheet(
+                container: viewModel.container,
+                onSelect: { gathering in
+                    viewModel.linkedGatheringId = gathering.id
+                    linkedTitle = gathering.title
+                    showPicker = false
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+// MARK: - Gathering Picker Sheet
+
+private struct GatheringPickerSheet: View {
+    let container: DependencyContainer
+    let onSelect: (Gathering) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var gatherings: [GatheringPickerItem] = []
+    @State private var isLoading = true
+    @State private var error: String?
+
+    struct GatheringPickerItem: Identifiable {
+        let id: String
+        let title: String
+        let startsAt: Date
+        let gathering: Gathering
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if gatherings.isEmpty {
+                    VStack(spacing: Spacing.md) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .font(.system(size: 40))
+                            .foregroundStyle(BelongColor.textTertiary)
+                        Text("No gatherings to link")
+                            .font(BelongFont.body())
+                            .foregroundStyle(BelongColor.textSecondary)
+                        Text("Join or host a gathering first")
+                            .font(BelongFont.secondary())
+                            .foregroundStyle(BelongColor.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(0..<gatherings.count, id: \.self) { index in
+                                let item = gatherings[index]
+                                Button {
+                                    onSelect(item.gathering)
+                                } label: {
+                                    HStack(spacing: Spacing.sm) {
+                                        Image(systemName: "calendar.circle.fill")
+                                            .font(.system(size: 28))
+                                            .foregroundStyle(BelongColor.primary)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(item.title)
+                                                .font(BelongFont.bodyMedium())
+                                                .foregroundStyle(BelongColor.textPrimary)
+                                            Text(item.startsAt.formatted(date: .abbreviated, time: .shortened))
+                                                .font(BelongFont.caption())
+                                                .foregroundStyle(BelongColor.textTertiary)
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, Layout.screenPadding)
+                                    .padding(.vertical, Spacing.md)
+                                }
+                                .buttonStyle(.plain)
+                                Divider().padding(.leading, 56)
+                            }
+                        }
+                    }
+                }
+            }
+            .background(BelongColor.background)
+            .navigationTitle("Link a gathering")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .task {
+            await loadGatherings()
+        }
+    }
+
+    private func loadGatherings() async {
+        isLoading = true
+        do {
+            let city = ""
+            let raw = try await container.gatheringService.fetchFeed(city: city, page: 0, filter: nil)
+                gatherings = raw.map { GatheringPickerItem(id: $0.id, title: $0.title, startsAt: $0.startsAt, gathering: $0) }
+        } catch {
+            self.error = error.localizedDescription
+            gatherings = []
+        }
+        isLoading = false
     }
 }
 
