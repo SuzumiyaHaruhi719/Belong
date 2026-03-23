@@ -69,16 +69,18 @@ final class GatheringDetailViewModel {
     }
 
     func save() async {
-        guard let g = gathering else { return }
-        gathering?.isBookmarked.toggle()
+        guard var g = gathering else { return }
+        let wasBookmarked = g.isBookmarked
+        g.isBookmarked.toggle()
+        gathering = g
         do {
-            if g.isBookmarked {
+            if wasBookmarked {
                 try await container.gatheringService.unsave(gatheringId: g.id)
             } else {
                 try await container.gatheringService.save(gatheringId: g.id)
             }
         } catch {
-            gathering?.isBookmarked = g.isBookmarked
+            gathering?.isBookmarked = wasBookmarked
         }
     }
 
@@ -86,8 +88,9 @@ final class GatheringDetailViewModel {
         guard let g = gathering else { return }
         do {
             try await container.gatheringService.leave(gatheringId: g.id)
+            let newCount = max(0, g.attendeeCount - 1)
             gathering?.isJoined = false
-            gathering?.attendeeCount = max(0, (gathering?.attendeeCount ?? 1) - 1)
+            gathering?.attendeeCount = newCount
             joinState = .idle
         } catch {
             self.error = error.localizedDescription

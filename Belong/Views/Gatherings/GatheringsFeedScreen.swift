@@ -16,6 +16,7 @@ import SwiftUI
 struct GatheringsFeedScreen: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel: GatheringsViewModel
+    @State private var hasLoadedOnce = false
 
     init(container: DependencyContainer) {
         _viewModel = State(initialValue: GatheringsViewModel(container: container))
@@ -47,6 +48,12 @@ struct GatheringsFeedScreen: View {
             if viewModel.gatherings.isEmpty {
                 await viewModel.loadFeed()
             }
+            hasLoadedOnce = true
+        }
+        .onAppear {
+            if hasLoadedOnce {
+                Task { await viewModel.refresh() }
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -58,7 +65,7 @@ struct GatheringsFeedNotificationButton: View {
     let badgeCount: Int
 
     var body: some View {
-        Button(action: {}) {
+        NavigationLink(value: ChatRoute.notificationsComments) {
             Image(systemName: "bell")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(BelongColor.textPrimary)

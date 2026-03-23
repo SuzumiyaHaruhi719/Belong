@@ -30,6 +30,8 @@ struct EditCulturalTagsScreen: View {
             if viewModel == nil {
                 let vm = EditProfileViewModel(userService: container.userService)
                 viewModel = vm
+                // Load existing tags first so they appear pre-selected
+                await vm.loadExistingTags()
             }
             do {
                 backgroundPresets = try await container.userService.fetchTagPresets(category: .culturalBackground)

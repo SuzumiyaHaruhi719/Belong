@@ -43,12 +43,16 @@ final class GatheringsViewModel {
         isLoading = true
         error = nil
         do {
-            async let recommended = container.gatheringService.fetchRecommended(city: "Melbourne", limit: 1)
-            async let feed = container.gatheringService.fetchFeed(city: "Melbourne", page: 1, filter: nil)
-            let recResult = try await recommended
-            let feedResult = try await feed
-            topPick = recResult.first
+            // Fetch feed (empty city = all cities, page 0 = first page)
+            let feedResult = try await container.gatheringService.fetchFeed(city: "", page: 0, filter: nil)
             gatherings = feedResult
+            topPick = feedResult.first
+
+            // Try recommendations separately (may fail if user has no tag data yet)
+            if let rec = try? await container.gatheringService.fetchRecommended(city: "Melbourne", limit: 1),
+               let first = rec.first {
+                topPick = first
+            }
         } catch {
             self.error = error.localizedDescription
         }

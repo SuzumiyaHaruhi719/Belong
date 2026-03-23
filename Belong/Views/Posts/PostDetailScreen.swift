@@ -73,7 +73,11 @@ private struct PostDetailScrollContent: View {
 
                 VStack(alignment: .leading, spacing: Spacing.base) {
                     // Author row
-                    PostDetailAuthorRow(post: post)
+                    PostDetailAuthorRow(post: post, onFollow: {
+                        Task {
+                            try? await viewModel.container.userService.follow(userId: post.authorId)
+                        }
+                    })
 
                     // Content with hashtag highlighting
                     PostDetailContentText(content: post.content, tags: post.tags)
@@ -113,6 +117,8 @@ private struct PostDetailScrollContent: View {
 
 private struct PostDetailAuthorRow: View {
     let post: Post
+    let onFollow: () -> Void
+    @State private var isFollowing = false
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -131,16 +137,21 @@ private struct PostDetailAuthorRow: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Text("Follow")
+            Button(action: {
+                guard !isFollowing else { return }
+                isFollowing = true
+                onFollow()
+            }) {
+                Text(isFollowing ? "Following" : "Follow")
                     .font(BelongFont.secondaryMedium())
-                    .foregroundStyle(BelongColor.primary)
+                    .foregroundStyle(isFollowing ? BelongColor.textSecondary : BelongColor.primary)
                     .padding(.horizontal, Spacing.md)
                     .frame(height: 34)
-                    .background(BelongColor.surfaceSecondary)
+                    .background(isFollowing ? BelongColor.surface : BelongColor.surfaceSecondary)
                     .clipShape(Capsule())
             }
             .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+            .disabled(isFollowing)
         }
     }
 }

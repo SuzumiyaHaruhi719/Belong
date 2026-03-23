@@ -80,6 +80,11 @@ final class MockAuthService: AuthServiceProtocol {
     nonisolated func logout() async throws {
         try await Task.sleep(for: .milliseconds(300))
     }
+
+    nonisolated func deleteAccount() async throws {
+        try await Task.sleep(for: .milliseconds(500))
+        // Mock: simulate account deletion
+    }
 }
 
 // MARK: - Auth Errors

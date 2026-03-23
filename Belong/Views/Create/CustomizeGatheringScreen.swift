@@ -25,7 +25,7 @@ extension GatheringVibe: SegmentOption {
 
 struct CustomizeGatheringScreen: View {
     @Bindable var viewModel: CreateGatheringViewModel
-    let template: HostingTemplate
+    let template: HostingTemplate?
     @Binding var path: NavigationPath
     @State private var attemptedPreview = false
 
@@ -61,8 +61,9 @@ struct CustomizeGatheringScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Save draft") {
-                    viewModel.saveDraft()
+                    Task { await viewModel.saveDraft() }
                 }
+                .disabled(viewModel.isSavingDraft)
                 .font(BelongFont.secondaryMedium())
                 .foregroundStyle(BelongColor.primary)
             }
@@ -272,13 +273,8 @@ private struct CustomizeGatheringSettingsSection: View {
 
 private struct CustomizeGatheringTagsSection: View {
     @Bindable var viewModel: CreateGatheringViewModel
-
-    private let availableTags = [
-        "Korean", "Japanese", "Chinese", "Vietnamese", "Thai",
-        "Indian", "Filipino", "Food", "Cooking", "Study",
-        "Sports", "Dancing", "Faith", "Meditation", "Festivals",
-        "Low-key hangout"
-    ]
+    @State private var availableTags: [String] = []
+    @State private var isLoadingTags = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.base) {
@@ -286,11 +282,34 @@ private struct CustomizeGatheringTagsSection: View {
                 .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
 
-            ChipGroup(
-                options: availableTags,
-                selected: $viewModel.selectedTags
-            )
+            if isLoadingTags {
+                ProgressView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ChipGroup(
+                    options: availableTags,
+                    selected: $viewModel.selectedTags
+                )
+            }
         }
+        .task {
+            await loadTags()
+        }
+    }
+
+    private func loadTags() async {
+        isLoadingTags = true
+        do {
+            async let backgrounds = viewModel.container.userService.fetchTagPresets(category: .culturalBackground)
+            async let interests = viewModel.container.userService.fetchTagPresets(category: .interestVibe)
+            let bgResult = try await backgrounds
+            let interestResult = try await interests
+            availableTags = bgResult + interestResult
+        } catch {
+            // Fallback to empty — user can still type or select from what's available
+            availableTags = []
+        }
+        isLoadingTags = false
     }
 }
 

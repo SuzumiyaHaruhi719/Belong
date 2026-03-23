@@ -6,6 +6,7 @@ struct CreateGatheringFlow: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: CreateGatheringViewModel?
     @State private var path = NavigationPath()
+    @State private var showShareSheet = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -36,9 +37,15 @@ struct CreateGatheringFlow: View {
                             dismiss()
                         },
                         onShare: {
-                            // Share sheet in production
+                            showShareSheet = true
                         }
                     )
+                    .sheet(isPresented: $showShareSheet) {
+                        ShareSheet(
+                            shareURL: URL(string: "https://belong.app/gathering/\(gatheringId)")!,
+                            shareTitle: "Join my gathering '\(resolvedViewModel.title)' on Belong!"
+                        )
+                    }
                 case .createPost:
                     EmptyView()
                 }

@@ -74,6 +74,18 @@ struct GatheringsTabRoot: View {
                         GatheringSearchScreen(container: container)
                     }
                 }
+                .navigationDestination(for: ChatRoute.self) { route in
+                    switch route {
+                    case .notificationsComments:
+                        NotificationListScreen(filter: .comments)
+                    case .notificationsLikes:
+                        NotificationListScreen(filter: .likes)
+                    case .notificationsMentions:
+                        NotificationListScreen(filter: .mentions)
+                    default:
+                        EmptyView()
+                    }
+                }
         }
     }
 }

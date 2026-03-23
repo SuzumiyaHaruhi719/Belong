@@ -31,6 +31,12 @@ final class CreateGatheringViewModel {
     // Published gathering ID after success
     var publishedGatheringId: String?
 
+    // Draft support
+    var isSavingDraft: Bool = false
+    var draftSaved: Bool = false
+    var draftError: String?
+    var existingDraftId: String?
+
     // MARK: - Computed
 
     var isFormValid: Bool {
@@ -42,8 +48,8 @@ final class CreateGatheringViewModel {
     /// Preview-ready Gathering built from current form state.
     var previewGathering: Gathering {
         Gathering(
-            id: "preview",
-            hostId: "current-user",
+            id: existingDraftId ?? "",
+            hostId: SupabaseManager.shared.currentUserId ?? "",
             title: title,
             description: descriptionText,
             templateType: templateTypeFromTemplate,
@@ -86,7 +92,7 @@ final class CreateGatheringViewModel {
 
     // MARK: - Dependencies
 
-    private let container: DependencyContainer
+    private(set) var container: DependencyContainer
 
     init(container: DependencyContainer) {
         self.container = container
@@ -102,7 +108,7 @@ final class CreateGatheringViewModel {
     private func uploadCoverImage(_ image: UIImage) async {
         coverUploadState = .uploading
         do {
-            let userId = "current-user" // In production: auth.uid()
+            let userId = SupabaseManager.shared.currentUserId ?? "anonymous"
             let filename = "\(UUID().uuidString).jpg"
             let path = "\(userId)/\(filename)"
 
@@ -172,9 +178,22 @@ final class CreateGatheringViewModel {
         publishError = nil
 
         do {
-            let gathering = previewGathering
-            let created = try await container.gatheringService.create(gathering)
-            publishedGatheringId = created.id
+            if let draftId = existingDraftId {
+                if let svc = container.gatheringService as? SupabaseGatheringService {
+                    let published = try await svc.publishDraft(gatheringId: draftId)
+                    publishedGatheringId = published.id
+                } else {
+                    var gathering = previewGathering
+                    gathering.isDraft = false
+                    let created = try await container.gatheringService.update(gathering)
+                    publishedGatheringId = created.id
+                }
+            } else {
+                var gathering = previewGathering
+                gathering.isDraft = false
+                let created = try await container.gatheringService.create(gathering)
+                publishedGatheringId = created.id
+            }
         } catch {
             publishError = error.localizedDescription
         }
@@ -182,7 +201,53 @@ final class CreateGatheringViewModel {
         isPublishing = false
     }
 
-    func saveDraft() {
+    func saveDraft() async {
+        isSavingDraft = true
+        draftError = nil
+        draftSaved = false
+
+        do {
+            var draft = previewGathering
+            draft.isDraft = true
+            if let existingId = existingDraftId {
+                draft = Gathering(
+                    id: existingId, hostId: draft.hostId, title: draft.title,
+                    description: draft.description, templateType: draft.templateType,
+                    emoji: draft.emoji, imageURL: draft.imageURL, city: draft.city,
+                    school: draft.school, locationName: draft.locationName,
+                    latitude: draft.latitude, longitude: draft.longitude,
+                    startsAt: draft.startsAt, endsAt: draft.endsAt,
+                    maxAttendees: draft.maxAttendees, visibility: draft.visibility,
+                    vibe: draft.vibe, status: draft.status, isDraft: true,
+                    tags: draft.tags, attendeeCount: draft.attendeeCount,
+                    attendeeAvatars: draft.attendeeAvatars, hostName: draft.hostName,
+                    hostAvatarEmoji: draft.hostAvatarEmoji, hostRating: draft.hostRating,
+                    isBookmarked: draft.isBookmarked, isJoined: draft.isJoined,
+                    isMaybe: draft.isMaybe, createdAt: draft.createdAt
+                )
+            }
+            let saved = try await container.gatheringService.create(draft)
+            existingDraftId = saved.id
+            isDraft = true
+            draftSaved = true
+        } catch {
+            draftError = error.localizedDescription
+        }
+        isSavingDraft = false
+    }
+
+    /// Load an existing draft for editing
+    func loadDraft(_ gathering: Gathering) {
+        existingDraftId = gathering.id
+        title = gathering.title
+        descriptionText = gathering.description
+        locationName = gathering.locationName
+        selectedDate = gathering.startsAt
+        maxAttendees = gathering.maxAttendees
+        selectedVisibility = gathering.visibility
+        selectedVibe = gathering.vibe
+        selectedTags = Set(gathering.tags)
+        coverImageURL = gathering.imageURL
         isDraft = true
     }
 }

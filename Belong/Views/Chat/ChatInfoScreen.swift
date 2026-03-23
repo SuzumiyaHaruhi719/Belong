@@ -59,6 +59,8 @@ private struct ChatInfoContent: View {
 private struct ChatInfoDMSections: View {
     let conversation: Conversation
     @Binding var isMuted: Bool
+    @Environment(DependencyContainer.self) private var container
+    @Environment(\.dismiss) private var dismiss
 
     private var otherMember: ConversationMemberInfo? {
         conversation.members.first { $0.userId != SampleData.currentUser.id }
@@ -97,7 +99,15 @@ private struct ChatInfoDMSections: View {
             .tint(BelongColor.primary)
 
             Button(role: .destructive) {
-                // Block action placeholder
+                guard let userId = otherMember?.userId else { return }
+                Task {
+                    do {
+                        try await container.userService.block(userId: userId)
+                        dismiss()
+                    } catch {
+                        // Block failed silently for now
+                    }
+                }
             } label: {
                 Label("Block User", systemImage: "hand.raised")
             }
@@ -110,6 +120,8 @@ private struct ChatInfoDMSections: View {
 private struct ChatInfoGroupSections: View {
     let conversation: Conversation
     @Binding var isMuted: Bool
+    @Environment(DependencyContainer.self) private var container
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         // Gathering header
@@ -157,7 +169,15 @@ private struct ChatInfoGroupSections: View {
             .tint(BelongColor.primary)
 
             Button(role: .destructive) {
-                // Leave group placeholder
+                guard let gatheringId = conversation.gatheringId else { return }
+                Task {
+                    do {
+                        try await container.gatheringService.leave(gatheringId: gatheringId)
+                        dismiss()
+                    } catch {
+                        // Leave failed silently for now
+                    }
+                }
             } label: {
                 Label("Leave Group", systemImage: "rectangle.portrait.and.arrow.right")
             }

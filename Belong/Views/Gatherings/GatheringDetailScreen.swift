@@ -4,7 +4,9 @@ struct GatheringDetailScreen: View {
     let gatheringId: String
     let initialGathering: Gathering?
     @State private var viewModel: GatheringDetailViewModel
+    @State private var showEditFlow = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(DependencyContainer.self) private var container
 
     init(gathering: Gathering, container: DependencyContainer) {
         self.gatheringId = gathering.id
@@ -26,7 +28,7 @@ struct GatheringDetailScreen: View {
                     gathering: gathering,
                     attendees: viewModel.attendees,
                     onBookmarkToggle: { Task { await viewModel.save() } },
-                    onAttendeesTapped: {}
+                    onAttendeesTapped: { /* Navigation handled via NavigationLink in AttendeePile */ }
                 )
 
                 // Bottom action bar
@@ -36,7 +38,8 @@ struct GatheringDetailScreen: View {
                         joinState: viewModel.joinState,
                         onJoin: { Task { await viewModel.join() } },
                         onMaybe: { Task { await viewModel.maybe() } },
-                        onLeave: { Task { await viewModel.leave() } }
+                        onLeave: { Task { await viewModel.leave() } },
+                        onEdit: { showEditFlow = true }
                     )
                 }
             }
@@ -57,6 +60,11 @@ struct GatheringDetailScreen: View {
         .sheet(isPresented: $viewModel.showJoinConfirmation) {
             GatheringJoinConfirmationSheet()
                 .presentationDetents([.medium])
+        }
+        .fullScreenCover(isPresented: $showEditFlow) {
+            EditGatheringFlow(gathering: viewModel.gathering ?? initialGathering!, container: container) {
+                Task { await viewModel.loadDetail(id: gatheringId) }
+            }
         }
         .task {
             await viewModel.loadDetail(id: gatheringId)
@@ -185,6 +193,7 @@ struct GatheringDetailScrollContent: View {
                     GatheringDetailAttendeePile(
                         avatars: gathering.attendeeAvatars,
                         count: gathering.attendeeCount,
+                        gatheringId: gathering.id,
                         onTap: onAttendeesTapped
                     )
 
@@ -280,10 +289,11 @@ struct GatheringDetailHostRow: View {
 struct GatheringDetailAttendeePile: View {
     let avatars: [String]
     let count: Int
+    let gatheringId: String
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
+        NavigationLink(value: GatheringsRoute.attendees(gatheringId)) {
             HStack(spacing: Spacing.sm) {
                 GatheringCardFacePile(avatarEmojis: avatars)
                 Text("\(count) attending")
@@ -303,23 +313,38 @@ struct GatheringDetailBottomBar: View {
     let onJoin: () -> Void
     let onMaybe: () -> Void
     let onLeave: () -> Void
+    var onEdit: (() -> Void)? = nil
 
     private var isHost: Bool {
-        // Placeholder: in real app, compare with current user ID
-        false
+        guard let currentUserId = SupabaseManager.shared.currentUserId else { return false }
+        return gathering.hostId == currentUserId
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: Spacing.md) {
-                if joinState == .joined {
+                if joinState == .joined || gathering.isJoined {
                     BelongButton(
                         title: "Joined",
                         style: .primary,
                         isFullWidth: true,
                         isDisabled: true,
                         leadingIcon: "checkmark",
+                        action: {}
+                    )
+                    BelongButton(
+                        title: "Leave",
+                        style: .tertiary,
+                        action: onLeave
+                    )
+                } else if gathering.isMaybe {
+                    BelongButton(
+                        title: "Maybe",
+                        style: .secondary,
+                        isFullWidth: true,
+                        isDisabled: true,
+                        leadingIcon: "questionmark.circle",
                         action: {}
                     )
                     BelongButton(
@@ -341,7 +366,7 @@ struct GatheringDetailBottomBar: View {
                         style: .secondary,
                         isFullWidth: true,
                         leadingIcon: "pencil",
-                        action: {}
+                        action: { onEdit?() }
                     )
                 } else {
                     BelongButton(
@@ -396,6 +421,71 @@ struct GatheringJoinConfirmationSheet: View {
     }
 }
 
+// MARK: - Edit Gathering Flow
+
+struct EditGatheringFlow: View {
+    let gathering: Gathering
+    let container: DependencyContainer
+    var onSaved: (() -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
+    @State private var editViewModel: CreateGatheringViewModel?
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Group {
+                if let vm = editViewModel {
+                    CustomizeGatheringScreen(viewModel: vm, template: nil, path: $path)
+                } else {
+                    ProgressView()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(BelongColor.textSecondary)
+                    }
+                    .accessibilityLabel("Close")
+                }
+            }
+            .navigationTitle("Edit Gathering")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: CreateRoute.self) { route in
+                switch route {
+                case .previewGathering:
+                    if let vm = editViewModel {
+                        GatheringPreviewScreen(viewModel: vm, path: $path)
+                    }
+                case .publishedGathering(let gatheringId):
+                    GatheringPublishedScreen(
+                        gatheringId: gatheringId,
+                        onViewGathering: {
+                            onSaved?()
+                            dismiss()
+                        },
+                        onShare: {}
+                    )
+                default:
+                    EmptyView()
+                }
+            }
+        }
+        .environment(AppState())
+        .environment(container)
+        .onAppear {
+            if editViewModel == nil {
+                let vm = CreateGatheringViewModel(container: container)
+                vm.loadDraft(gathering)
+                editViewModel = vm
+            }
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
         GatheringDetailScreen(
@@ -404,4 +494,5 @@ struct GatheringJoinConfirmationSheet: View {
         )
     }
     .environment(AppState())
+    .environment(DependencyContainer())
 }

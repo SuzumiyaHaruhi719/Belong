@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @Observable @MainActor
 final class CreatePostViewModel {
@@ -6,6 +7,7 @@ final class CreatePostViewModel {
 
     var content: String = ""
     var selectedImageURLs: [URL] = []
+    var isUploadingImage: Bool = false
     var visibility: PostVisibility = .publicPost
     var linkedGatheringId: String?
     var isPublishing: Bool = false
@@ -51,6 +53,23 @@ final class CreatePostViewModel {
 
     func reorderImages(from source: IndexSet, to destination: Int) {
         selectedImageURLs.move(fromOffsets: source, toOffset: destination)
+    }
+
+    func uploadAndAddImage(_ image: UIImage) async {
+        guard canAddMoreImages else { return }
+        isUploadingImage = true
+        do {
+            let userId = SupabaseManager.shared.currentUserId ?? "anonymous"
+            let filename = "\(UUID().uuidString).jpg"
+            let path = "\(userId)/\(filename)"
+            let result = try await container.storageService.uploadImage(
+                image, bucket: .postImages, path: path
+            )
+            selectedImageURLs.append(result.publicURL)
+        } catch {
+            publishError = "Image upload failed: \(error.localizedDescription)"
+        }
+        isUploadingImage = false
     }
 
     // MARK: - Tag Support

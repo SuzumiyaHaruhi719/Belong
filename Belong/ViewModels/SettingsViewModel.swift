@@ -45,11 +45,16 @@ final class SettingsViewModel {
         }
     }
 
+    /// Call this to show the confirmation dialog first.
+    func requestDeleteAccount() {
+        showDeleteConfirm = true
+    }
+
+    /// Called after user confirms deletion in the confirmation dialog.
     func deleteAccount() async {
         isDeletingAccount = true
         do {
-            // In production: call a delete account endpoint
-            try await authService.logout()
+            try await authService.deleteAccount()
             isDeletingAccount = false
         } catch {
             self.error = error.localizedDescription

@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 @Observable @MainActor
 final class EditProfileViewModel {
@@ -38,6 +39,32 @@ final class EditProfileViewModel {
     }
 
     // MARK: - Load
+
+    /// Load existing tags from database so the edit screen pre-selects them
+    func loadExistingTags() async {
+        guard let userId = SupabaseManager.shared.currentUserId else { return }
+        do {
+            let rows: [DBUserTag] = try await SupabaseManager.shared.client.from("user_tags")
+                .select()
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+            for row in rows {
+                switch TagCategory(rawValue: row.category) {
+                case .culturalBackground:
+                    editingBackground.insert(row.tagValue)
+                case .language:
+                    editingLanguages.insert(row.tagValue)
+                case .interestVibe:
+                    editingInterests.insert(row.tagValue)
+                case .none:
+                    break
+                }
+            }
+        } catch {
+            // Non-critical: start with empty selection on error
+        }
+    }
 
     func loadCurrentValues(from user: User) {
         displayName = user.displayName

@@ -20,7 +20,7 @@ struct RootView: View {
         }
         .environment(appState)
         .environment(deps)
-        .task { appState.checkAuth() }
+        .task { await appState.checkAuth() }
     }
 }
 

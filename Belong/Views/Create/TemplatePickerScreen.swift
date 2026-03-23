@@ -40,8 +40,12 @@ struct TemplatePickerScreen: View {
 
     private func loadTemplates() async {
         isLoading = true
-        // In production: fetch from service
-        templates = SampleData.hostingTemplates
+        do {
+            templates = try await viewModel.container.gatheringService.fetchTemplates()
+        } catch {
+            // Fallback to empty on failure
+            templates = []
+        }
         isLoading = false
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct LoginScreen: View {
     @Environment(AppState.self) private var appState
@@ -116,6 +117,9 @@ struct LoginErrorBanner: View {
 struct LoginActions: View {
     @Environment(AppState.self) private var appState
     @Environment(OnboardingViewModel.self) private var viewModel
+    @State private var showForgotPasswordAlert = false
+    @State private var forgotPasswordMessage = ""
+    @State private var isSendingReset = false
 
     var body: some View {
         VStack(spacing: Spacing.md) {
@@ -134,13 +138,40 @@ struct LoginActions: View {
             }
 
             Button {
-                // Forgot password action placeholder
+                Task {
+                    let email = viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !email.isEmpty else {
+                        forgotPasswordMessage = "Please enter your email address first."
+                        showForgotPasswordAlert = true
+                        return
+                    }
+                    isSendingReset = true
+                    do {
+                        try await SupabaseManager.shared.client.auth.resetPasswordForEmail(email)
+                        forgotPasswordMessage = "Password reset email sent. Check your inbox."
+                    } catch {
+                        forgotPasswordMessage = "Failed to send reset email: \(error.localizedDescription)"
+                    }
+                    isSendingReset = false
+                    showForgotPasswordAlert = true
+                }
             } label: {
-                Text("Forgot password?")
-                    .font(BelongFont.secondaryMedium())
-                    .foregroundStyle(BelongColor.primary)
+                if isSendingReset {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("Forgot password?")
+                        .font(BelongFont.secondaryMedium())
+                        .foregroundStyle(BelongColor.primary)
+                }
             }
+            .disabled(isSendingReset)
             .accessibilityLabel("Forgot password")
+            .alert("Password Reset", isPresented: $showForgotPasswordAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(forgotPasswordMessage)
+            }
         }
     }
 }

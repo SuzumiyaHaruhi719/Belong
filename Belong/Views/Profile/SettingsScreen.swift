@@ -103,9 +103,17 @@ private struct SettingsPreferencesSection: View {
                 SettingsRowLabel(title: "Notification Settings", icon: "bell")
             }
 
-            SettingsNavigationRow(title: "Privacy Settings", icon: "hand.raised")
+            NavigationLink {
+                PrivacySettingsScreen()
+            } label: {
+                SettingsRowLabel(title: "Privacy Settings", icon: "hand.raised")
+            }
 
-            SettingsNavigationRow(title: "Language", icon: "globe")
+            NavigationLink {
+                LanguageSettingsScreen()
+            } label: {
+                SettingsRowLabel(title: "Language", icon: "globe")
+            }
         }
     }
 }
@@ -184,6 +192,167 @@ private struct SettingsRowLabel: View {
         } icon: {
             Image(systemName: icon)
                 .foregroundStyle(BelongColor.textSecondary)
+        }
+    }
+}
+
+// MARK: - Privacy Settings Screen
+
+struct PrivacySettingsScreen: View {
+    @Environment(AppState.self) private var appState
+    @Environment(DependencyContainer.self) private var container
+    @State private var privacyProfile: PrivacyLevel = .publicProfile
+    @State private var privacyDM: DMPrivacy = .everyone
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    var body: some View {
+        Form {
+            Section("Profile Visibility") {
+                Picker("Who can see your profile", selection: $privacyProfile) {
+                    Text("Public").tag(PrivacyLevel.publicProfile)
+                    Text("School Only").tag(PrivacyLevel.schoolOnly)
+                    Text("Followers Only").tag(PrivacyLevel.followersOnly)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+
+            Section("Direct Messages") {
+                Picker("Who can message you", selection: $privacyDM) {
+                    Text("Mutuals Only").tag(DMPrivacy.mutualOnly)
+                    Text("Everyone").tag(DMPrivacy.everyone)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+
+            if let error = saveError {
+                Section {
+                    Text(error)
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.error)
+                }
+            }
+        }
+        .navigationTitle("Privacy Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let user = appState.currentUser {
+                privacyProfile = user.privacyProfile
+                privacyDM = user.privacyDM
+            }
+        }
+        .onChange(of: privacyProfile) { _, newValue in
+            savePrivacy(profile: newValue, dm: privacyDM)
+        }
+        .onChange(of: privacyDM) { _, newValue in
+            savePrivacy(profile: privacyProfile, dm: newValue)
+        }
+    }
+
+    private func savePrivacy(profile: PrivacyLevel, dm: DMPrivacy) {
+        isSaving = true
+        saveError = nil
+        Task {
+            do {
+                try await container.userService.updateProfile([
+                    "privacy_profile": profile.rawValue,
+                    "privacy_dm": dm.rawValue
+                ])
+                appState.currentUser?.privacyProfile = profile
+                appState.currentUser?.privacyDM = dm
+            } catch {
+                saveError = error.localizedDescription
+            }
+            isSaving = false
+        }
+    }
+}
+
+// MARK: - Language Settings Screen
+
+struct LanguageSettingsScreen: View {
+    @Environment(AppState.self) private var appState
+    @Environment(DependencyContainer.self) private var container
+    @State private var selectedLanguage: String = "en"
+    @State private var isSaving = false
+    @State private var saveError: String?
+    @State private var savedSuccessfully = false
+
+    private let languages: [(code: String, label: String)] = [
+        ("en", "English"),
+        ("zh", "中文"),
+        ("ko", "한국어")
+    ]
+
+    var body: some View {
+        Form {
+            Section("App Language") {
+                Picker("Language", selection: $selectedLanguage) {
+                    ForEach(languages, id: \.code) { lang in
+                        Text(lang.label).tag(lang.code)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            }
+
+            Section {
+                if isSaving {
+                    HStack {
+                        ProgressView()
+                        Text("Saving...")
+                            .font(BelongFont.caption())
+                            .foregroundStyle(BelongColor.textSecondary)
+                    }
+                } else if savedSuccessfully {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(BelongColor.success)
+                        Text("Language preference saved")
+                            .font(BelongFont.caption())
+                            .foregroundStyle(BelongColor.success)
+                    }
+                }
+            }
+
+            Section {
+                Text("Language preference affects content recommendations and gathering discovery. Full UI translation is coming in a future update.")
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.textTertiary)
+            }
+
+            if let error = saveError {
+                Section {
+                    Text(error)
+                        .font(BelongFont.caption())
+                        .foregroundStyle(BelongColor.error)
+                }
+            }
+        }
+        .navigationTitle("Language")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if let user = appState.currentUser {
+                selectedLanguage = user.appLanguage
+            }
+        }
+        .onChange(of: selectedLanguage) { _, newValue in
+            isSaving = true
+            saveError = nil
+            Task {
+                do {
+                    try await container.userService.updateProfile(["app_language": newValue])
+                    appState.currentUser?.appLanguage = newValue
+                    savedSuccessfully = true
+                    try? await Task.sleep(for: .seconds(2))
+                    savedSuccessfully = false
+                } catch {
+                    saveError = error.localizedDescription
+                }
+                isSaving = false
+            }
         }
     }
 }

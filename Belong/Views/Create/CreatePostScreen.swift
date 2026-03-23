@@ -167,11 +167,12 @@ private struct CreatePostImageSection: View {
                     }
 
                     if viewModel.canAddMoreImages {
-                        CreatePostAddImageButton {
-                            // In production: open photo picker
-                            // For mock: add a sample image
-                            let sampleURL = URL(string: "https://picsum.photos/seed/post-\(viewModel.imageCount)/400/400")!
-                            viewModel.addImage(url: sampleURL)
+                        ImagePickerButton { image in
+                            Task {
+                                await viewModel.uploadAndAddImage(image)
+                            }
+                        } label: {
+                            CreatePostAddImageLabel()
                         }
                     }
                 }
@@ -213,26 +214,32 @@ private struct CreatePostImageThumbnail: View {
     }
 }
 
+private struct CreatePostAddImageLabel: View {
+    var body: some View {
+        VStack(spacing: Spacing.xs) {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .medium))
+                .foregroundStyle(BelongColor.primary)
+            Text("Add")
+                .font(BelongFont.caption())
+                .foregroundStyle(BelongColor.textSecondary)
+        }
+        .frame(width: 100, height: 100)
+        .background(BelongColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+        .overlay(
+            RoundedRectangle(cornerRadius: Layout.radiusMd)
+                .stroke(BelongColor.border, style: StrokeStyle(lineWidth: 1, dash: [6]))
+        )
+    }
+}
+
 private struct CreatePostAddImageButton: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: Spacing.xs) {
-                Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(BelongColor.primary)
-                Text("Add")
-                    .font(BelongFont.caption())
-                    .foregroundStyle(BelongColor.textSecondary)
-            }
-            .frame(width: 100, height: 100)
-            .background(BelongColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
-            .overlay(
-                RoundedRectangle(cornerRadius: Layout.radiusMd)
-                    .stroke(BelongColor.border, style: StrokeStyle(lineWidth: 1, dash: [6]))
-            )
+            CreatePostAddImageLabel()
         }
         .accessibilityLabel("Add photo")
     }

@@ -1,4 +1,6 @@
 import SwiftUI
+import Supabase
+import Auth
 
 @Observable @MainActor
 final class AppState {
@@ -62,9 +64,24 @@ final class AppState {
         selectedTab = .gatherings
     }
 
-    func checkAuth() {
-        // In production: check stored JWT/session
-        // For now: go to onboarding
+    func checkAuth() async {
+        if DependencyContainer.useLiveBackend {
+            let manager = SupabaseManager.shared
+            if let _ = try? await manager.client.auth.session,
+               let userId = manager.currentUserId {
+                if let rows: [DBUser] = try? await manager.client.from("users")
+                    .select()
+                    .eq("id", value: userId)
+                    .limit(1)
+                    .execute()
+                    .value,
+                   let row = rows.first {
+                    currentUser = mapUserRow(row)
+                    authStatus = .authenticated
+                    return
+                }
+            }
+        }
         authStatus = .onboarding
     }
 }

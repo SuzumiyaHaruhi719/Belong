@@ -13,7 +13,7 @@ final class PostDetailViewModel {
 
     // MARK: - Dependencies
 
-    private let container: DependencyContainer
+    private(set) var container: DependencyContainer
 
     init(container: DependencyContainer) {
         self.container = container

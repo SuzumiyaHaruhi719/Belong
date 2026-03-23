@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct ProfileScreen: View {
     @Environment(AppState.self) private var appState
@@ -339,6 +340,10 @@ private struct ProfileActionButtons: View {
 // MARK: - Cultural Tags
 
 private struct ProfileCulturalTags: View {
+    @Environment(DependencyContainer.self) private var deps
+    @State private var tags: [UserTag] = []
+    @State private var refreshId = UUID()
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack {
@@ -353,13 +358,39 @@ private struct ProfileCulturalTags: View {
                 }
             }
 
-            FlowLayout(spacing: Spacing.xs) {
-                ForEach(["Vietnamese", "English", "Food", "Cooking", "Hiking"], id: \.self) { tag in
-                    ChipView(title: tag, isSelected: true)
+            if tags.isEmpty {
+                Text("No tags yet — tap Edit to add yours")
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.textTertiary)
+            } else {
+                FlowLayout(spacing: Spacing.xs) {
+                    ForEach(tags) { tag in
+                        ChipView(title: tag.value, isSelected: true)
+                    }
                 }
             }
         }
         .padding(.horizontal, Layout.screenPadding)
+        .task(id: refreshId) {
+            await loadTags()
+        }
+        .onAppear {
+            refreshId = UUID()
+        }
+    }
+
+    private func loadTags() async {
+        guard let userId = SupabaseManager.shared.currentUserId else { return }
+        do {
+            let rows: [DBUserTag] = try await SupabaseManager.shared.client.from("user_tags")
+                .select()
+                .eq("user_id", value: userId)
+                .execute()
+                .value
+            tags = rows.map { UserTag(id: $0.id ?? UUID().uuidString, userId: $0.userId ?? userId, category: TagCategory(rawValue: $0.category) ?? .interestVibe, value: $0.tagValue) }
+        } catch {
+            // Fall back to empty
+        }
     }
 }
 
