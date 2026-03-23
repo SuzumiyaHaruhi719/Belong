@@ -43,8 +43,8 @@ final class AppState {
     var showCreateSheet = false
     var showCreateGatheringFlow = false
     var showCreatePostScreen = false
-    var unreadNotificationCount = 3
-    var unreadChatCount = 2
+    var unreadNotificationCount = 0
+    var unreadChatCount = 0
 
     var totalBadgeCount: Int { unreadNotificationCount + unreadChatCount }
 

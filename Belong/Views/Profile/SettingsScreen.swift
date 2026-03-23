@@ -184,6 +184,7 @@ private struct SettingsNavigationRow: View {
 // MARK: - Change Password Screen
 
 private struct ChangePasswordScreen: View {
+    @State private var currentPassword = ""
     @State private var newPassword = ""
     @State private var confirmPassword = ""
     @State private var isUpdating = false
@@ -198,8 +199,19 @@ private struct ChangePasswordScreen: View {
         newPassword.count >= 8
     }
 
+    private var canSubmit: Bool {
+        !currentPassword.isEmpty && passwordsMatch && isPasswordStrong && !isUpdating
+    }
+
     var body: some View {
         Form {
+            Section {
+                SecureField("Current password", text: $currentPassword)
+            } footer: {
+                Text("Enter your current password to verify your identity")
+                    .font(BelongFont.caption())
+            }
+
             Section {
                 SecureField("New password", text: $newPassword)
                 SecureField("Confirm new password", text: $confirmPassword)
@@ -226,7 +238,7 @@ private struct ChangePasswordScreen: View {
                         if isUpdating { ProgressView() }
                     }
                 }
-                .disabled(!passwordsMatch || !isPasswordStrong || isUpdating)
+                .disabled(!canSubmit)
             }
 
             if let message {
@@ -245,14 +257,24 @@ private struct ChangePasswordScreen: View {
         isUpdating = true
         message = nil
         do {
+            // Re-authenticate with current password first
+            let email = try await SupabaseManager.shared.client.auth.session.user.email ?? ""
+            _ = try await SupabaseManager.shared.client.auth.signIn(email: email, password: currentPassword)
+            // Then update to new password
             try await SupabaseManager.shared.client.auth.update(user: .init(password: newPassword))
             isSuccess = true
             message = "Password updated successfully"
+            currentPassword = ""
             newPassword = ""
             confirmPassword = ""
         } catch {
             isSuccess = false
-            message = error.localizedDescription
+            let msg = error.localizedDescription
+            if msg.contains("Invalid") || msg.contains("credentials") {
+                message = "Current password is incorrect"
+            } else {
+                message = msg
+            }
         }
         isUpdating = false
     }
