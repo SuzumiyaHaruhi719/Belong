@@ -88,9 +88,20 @@ final class SupabaseChatService: ChatServiceProtocol {
             let otherMember = convMembers.first { ($0.userId ?? "") != myId }
             let isMutual = otherMember.map { mutualIds.contains($0.userId ?? "") } ?? false
 
-            // Calculate unread count
+            // Calculate unread count: messages after last_read_at from other users
             let myMembership = convMembers.first { ($0.userId ?? "") == myId }
-            let myLastRead = parseSupabaseDate(myMembership?.lastReadAt)
+            let lastReadStr = myMembership?.lastReadAt
+            let lastMsgAt = lastMsg?.createdAt
+            var unread = 0
+            if let lastMsgAt, lastMsg?.senderId != myId {
+                if let lastReadStr {
+                    // If last message is newer than last read, there's at least 1 unread
+                    if lastMsgAt > lastReadStr { unread = 1 }
+                } else {
+                    // Never read this conversation = unread
+                    unread = 1
+                }
+            }
 
             return Conversation(
                 id: conv.id ?? "",
@@ -99,7 +110,7 @@ final class SupabaseChatService: ChatServiceProtocol {
                 title: nil,
                 lastMessageText: lastMsg?.content,
                 lastMessageAt: lastMsg?.createdAt.map { parseSupabaseDate($0) },
-                unreadCount: 0,
+                unreadCount: unread,
                 members: memberInfos,
                 createdAt: parseSupabaseDate(conv.createdAt),
                 isMutualFollow: isMutual

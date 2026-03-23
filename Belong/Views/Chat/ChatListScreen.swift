@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ChatListScreen: View {
     @Environment(DependencyContainer.self) private var container
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ChatListViewModel?
 
     var body: some View {
@@ -30,12 +31,21 @@ struct ChatListScreen: View {
                 )
                 viewModel = vm
                 await vm.loadAll()
+                updateBadge()
             }
         }
         .task(id: "autoRefresh") {
-            // Auto-refresh chat list every 10 seconds
             await viewModel?.startAutoRefresh()
         }
+        .onChange(of: viewModel?.conversations.count) {
+            updateBadge()
+        }
+    }
+
+    private func updateBadge() {
+        guard let vm = viewModel else { return }
+        let unread = vm.conversations.reduce(0) { $0 + $1.unreadCount }
+        appState.unreadChatCount = unread
     }
 }
 
