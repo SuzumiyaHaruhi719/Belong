@@ -66,6 +66,9 @@ private struct ChatListContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BelongColor.background)
+        .refreshable {
+            await viewModel.loadAll()
+        }
         .navigationTitle("Chat")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

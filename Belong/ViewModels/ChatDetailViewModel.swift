@@ -61,6 +61,8 @@ final class ChatDetailViewModel {
         do {
             messages = try await chatService.fetchMessages(conversationId: conversationId, page: 1)
             try? await chatService.markAsRead(conversationId: conversationId)
+            // Refresh mutual follow status from latest conversation data
+            await refreshMutualFollowStatus(conversationId: conversationId)
         } catch {
             self.error = error.localizedDescription
         }
@@ -68,6 +70,17 @@ final class ChatDetailViewModel {
 
         // Start listening for new messages in realtime
         await subscribeToMessages(conversationId: conversationId)
+    }
+
+    private func refreshMutualFollowStatus(conversationId: String) async {
+        guard var conv = conversation, conv.type == .dm, !conv.isMutualFollow else { return }
+        // Re-fetch conversations to get fresh isMutualFollow
+        if let fresh = try? await chatService.fetchConversations(),
+           let updated = fresh.first(where: { $0.id == conversationId }),
+           updated.isMutualFollow {
+            conv.isMutualFollow = true
+            conversation = conv
+        }
     }
 
     /// Subscribe to realtime INSERT events on the messages table for this conversation
