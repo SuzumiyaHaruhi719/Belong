@@ -1,4 +1,6 @@
 import SwiftUI
+import Supabase
+import Realtime
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
@@ -47,6 +49,9 @@ struct MainTabView: View {
         .task {
             await loadUnreadBadge()
         }
+        .task(id: "globalChatListener") {
+            await listenForNewMessages()
+        }
     }
 
     private func loadUnreadBadge() async {
@@ -55,6 +60,25 @@ struct MainTabView: View {
             appState.unreadChatCount = conversations.reduce(0) { $0 + $1.unreadCount }
         } catch {
             // Badge loading is best-effort
+        }
+    }
+
+    /// Global realtime listener: increments badge when a new message arrives
+    /// from another user, regardless of which tab is active.
+    private func listenForNewMessages() async {
+        let myId = SupabaseManager.shared.currentUserId ?? ""
+        guard !myId.isEmpty else { return }
+
+        let channel = SupabaseManager.shared.client.realtimeV2.channel("global-messages")
+        let insertions = channel.postgresChange(InsertAction.self, table: "messages")
+        await channel.subscribe()
+
+        for await insert in insertions {
+            let senderId = (try? insert.record["sender_id"]?.value as? String) ?? ""
+            if senderId != myId {
+                // New message from someone else — bump badge if not on that chat
+                appState.unreadChatCount += 1
+            }
         }
     }
 }
