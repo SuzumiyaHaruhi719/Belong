@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
+    @Environment(DependencyContainer.self) private var container
 
     var body: some View {
         @Bindable var state = appState
@@ -42,6 +43,18 @@ struct MainTabView: View {
         }
         .fullScreenCover(isPresented: $state.showCreatePostScreen) {
             CreatePostScreen()
+        }
+        .task {
+            await loadUnreadBadge()
+        }
+    }
+
+    private func loadUnreadBadge() async {
+        do {
+            let conversations = try await container.chatService.fetchConversations()
+            appState.unreadChatCount = conversations.reduce(0) { $0 + $1.unreadCount }
+        } catch {
+            // Badge loading is best-effort
         }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatDetailScreen: View {
     let conversation: Conversation
     @Environment(DependencyContainer.self) private var container
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ChatDetailViewModel?
 
     /// When true, hides DM gating (used by GroupChatScreen wrapper).
@@ -28,6 +29,10 @@ struct ChatDetailScreen: View {
                 vm.conversation = conversation
                 viewModel = vm
                 await vm.loadMessages(conversationId: conversation.id)
+                // Decrement badge after marking as read
+                if conversation.unreadCount > 0 {
+                    appState.unreadChatCount = max(0, appState.unreadChatCount - conversation.unreadCount)
+                }
             }
         }
         .onDisappear {

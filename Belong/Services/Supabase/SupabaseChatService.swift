@@ -57,6 +57,22 @@ final class SupabaseChatService: ChatServiceProtocol {
             }
         }
 
+        // Count unread messages per conversation
+        var unreadCounts: [String: Int] = [:]
+        for convId in convIds {
+            let myMember = memberships.first { ($0.conversationId ?? "") == convId }
+            let lastRead = myMember?.lastReadAt
+            var query = manager.client.from("messages")
+                .select("id", head: false, count: .exact)
+                .eq("conversation_id", value: convId)
+                .neq("sender_id", value: myId)
+            if let lastRead {
+                query = query.gt("created_at", value: lastRead)
+            }
+            let response = try await query.execute()
+            unreadCounts[convId] = response.count ?? 0
+        }
+
         // Check mutual follows for DMs
         let myFollowing: [FollowIdRow] = try await manager.client.from("follows")
             .select("following_id")
@@ -88,20 +104,9 @@ final class SupabaseChatService: ChatServiceProtocol {
             let otherMember = convMembers.first { ($0.userId ?? "") != myId }
             let isMutual = otherMember.map { mutualIds.contains($0.userId ?? "") } ?? false
 
-            // Calculate unread count: messages after last_read_at from other users
+            // Calculate unread count from unreadCounts dict
             let myMembership = convMembers.first { ($0.userId ?? "") == myId }
-            let lastReadStr = myMembership?.lastReadAt
-            let lastMsgAt = lastMsg?.createdAt
-            var unread = 0
-            if let lastMsgAt, lastMsg?.senderId != myId {
-                if let lastReadStr {
-                    // If last message is newer than last read, there's at least 1 unread
-                    if lastMsgAt > lastReadStr { unread = 1 }
-                } else {
-                    // Never read this conversation = unread
-                    unread = 1
-                }
-            }
+            let unread = unreadCounts[conv.id ?? ""] ?? 0
 
             return Conversation(
                 id: conv.id ?? "",
