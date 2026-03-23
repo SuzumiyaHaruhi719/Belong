@@ -52,7 +52,7 @@ struct CulturalBackgroundSection: View {
     var body: some View {
         @Bindable var vm = viewModel
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Cultural background")
+            Text("\u{1F30D} Cultural background")
                 .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
 
@@ -70,7 +70,7 @@ struct CulturalLanguagesSection: View {
     var body: some View {
         @Bindable var vm = viewModel
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Languages you speak")
+            Text("\u{1F5E3}\u{FE0F} Languages you speak")
                 .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
 
@@ -88,7 +88,7 @@ struct CulturalInterestsSection: View {
     var body: some View {
         @Bindable var vm = viewModel
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Interests & vibes")
+            Text("\u{2728} Interests & vibes")
                 .font(BelongFont.h3())
                 .foregroundStyle(BelongColor.textPrimary)
 

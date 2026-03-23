@@ -48,7 +48,7 @@ private struct SavedPostsContent: View {
             } else if viewModel.savedPosts.isEmpty {
                 EmptyStateView(
                     icon: "bookmark",
-                    title: "No saved posts",
+                    title: "No saved posts \u{1F4CC}",
                     message: "Save posts you love."
                 )
             } else {

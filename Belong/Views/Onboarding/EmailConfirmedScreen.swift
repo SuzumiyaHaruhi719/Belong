@@ -43,7 +43,7 @@ struct EmailConfirmedBadge: View {
 struct EmailConfirmedText: View {
     var body: some View {
         VStack(spacing: Spacing.md) {
-            Text("You're in!")
+            Text("You're in! \u{1F389}")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
 

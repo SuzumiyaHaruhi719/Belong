@@ -276,7 +276,7 @@ private struct PostDetailCommentsSection: View {
                 .foregroundStyle(BelongColor.textPrimary)
 
             if viewModel.comments.isEmpty {
-                Text("No comments yet -- be the first!")
+                Text("Be the first to comment \u{1F4AC}")
                     .font(BelongFont.secondary())
                     .foregroundStyle(BelongColor.textTertiary)
                     .padding(.vertical, Spacing.base)

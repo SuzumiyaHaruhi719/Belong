@@ -406,7 +406,7 @@ struct GatheringJoinConfirmationSheet: View {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 56))
                 .foregroundStyle(BelongColor.success)
-            Text("You're in!")
+            Text("\u{2705} You're in!")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
             Text("You've joined this gathering. We'll send you a reminder before it starts.")

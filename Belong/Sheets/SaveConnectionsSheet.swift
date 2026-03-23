@@ -36,7 +36,7 @@ struct SaveConnectionsSheet: View {
 private struct SaveConnectionsHeader: View {
     var body: some View {
         VStack(spacing: Spacing.xs) {
-            Text("Save your connections")
+            Text("Save your connections \u{1F465}")
                 .font(BelongFont.h2())
                 .foregroundStyle(BelongColor.textPrimary)
                 .accessibilityAddTraits(.isHeader)

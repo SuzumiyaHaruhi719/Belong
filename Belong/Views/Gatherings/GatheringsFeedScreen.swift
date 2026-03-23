@@ -124,7 +124,7 @@ struct GatheringsFeedEmptyContent: View {
     var body: some View {
         EmptyStateView(
             icon: "calendar",
-            title: "No gatherings yet",
+            title: "No gatherings yet \u{1F4C5}",
             message: "No gatherings in your area yet. Check back soon or host one yourself!"
         )
         .frame(maxWidth: .infinity)
@@ -246,7 +246,7 @@ private struct TopPickSection: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             // Section label with accent line
             HStack(spacing: Spacing.sm) {
-                Text("TOP PICK")
+                Text("\u{2B50} TOP PICK")
                     .font(BelongFont.captionMedium())
                     .foregroundStyle(BelongColor.primary)
                     .tracking(1)

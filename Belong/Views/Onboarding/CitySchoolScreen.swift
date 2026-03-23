@@ -29,7 +29,7 @@ struct CitySchoolScreen: View {
 struct CitySchoolHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("Where are you?")
+            Text("\u{1F4CD} Where are you?")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
 

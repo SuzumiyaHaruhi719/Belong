@@ -35,7 +35,7 @@ private struct GatheringPublishedHero: View {
             Text("🎉")
                 .font(.system(size: 72))
 
-            Text("Your gathering is live!")
+            Text("Your gathering is live! \u{1F389}")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
                 .multilineTextAlignment(.center)
@@ -50,15 +50,15 @@ private struct GatheringPublishedInfo: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             GatheringPublishedBullet(
                 icon: "envelope.fill",
-                text: "We'll send a welcome message"
+                text: "\u{1F4E7} We'll send a welcome message"
             )
             GatheringPublishedBullet(
                 icon: "bell.fill",
-                text: "You'll be notified when people join"
+                text: "\u{1F514} You'll be notified when people join"
             )
             GatheringPublishedBullet(
                 icon: "pencil.circle.fill",
-                text: "You can edit or cancel anytime"
+                text: "\u{270F}\u{FE0F} You can edit or cancel anytime"
             )
         }
         .padding(Spacing.lg)

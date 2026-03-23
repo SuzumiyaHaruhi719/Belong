@@ -13,7 +13,7 @@ struct JoinConfirmationSheet: View {
 
             JoinConfirmationCheckmark(isVisible: showCheckmark)
 
-            Text("You're going!")
+            Text("\u{1F389} You're going!")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.primary)
                 .accessibilityAddTraits(.isHeader)

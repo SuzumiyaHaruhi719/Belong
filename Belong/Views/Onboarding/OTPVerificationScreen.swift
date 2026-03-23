@@ -31,7 +31,7 @@ struct OTPHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("Check your email")
+            Text("\u{1F4E7} Check your email")
                 .font(BelongFont.h1())
                 .foregroundStyle(BelongColor.textPrimary)
 

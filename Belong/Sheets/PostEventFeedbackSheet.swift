@@ -30,7 +30,7 @@ struct PostEventFeedbackSheet: View {
             Spacer()
 
             if showThanks {
-                Text("Thanks!")
+                Text("Thanks! \u{2764}\u{FE0F}")
                     .font(BelongFont.h3())
                     .foregroundStyle(BelongColor.success)
                     .transition(.opacity.combined(with: .scale))

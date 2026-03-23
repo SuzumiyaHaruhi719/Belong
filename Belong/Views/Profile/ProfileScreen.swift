@@ -359,7 +359,7 @@ private struct ProfileCulturalTags: View {
             }
 
             if tags.isEmpty {
-                Text("No tags yet — tap Edit to add yours")
+                Text("No tags yet \u{1F3F7}\u{FE0F} — tap Edit to add yours")
                     .font(BelongFont.caption())
                     .foregroundStyle(BelongColor.textTertiary)
             } else {

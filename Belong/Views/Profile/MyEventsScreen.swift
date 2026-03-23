@@ -63,7 +63,7 @@ private struct MyEventsContent: View {
                 MyEventsGatheringList(
                     gatherings: upcomingGatherings,
                     emptyIcon: "calendar",
-                    emptyTitle: "No upcoming events",
+                    emptyTitle: "No upcoming events \u{1F4C5}",
                     emptyMessage: "Join a gathering to see it here.",
                     showChatButton: true
                 )
@@ -71,7 +71,7 @@ private struct MyEventsContent: View {
                 MyEventsGatheringList(
                     gatherings: pastGatherings,
                     emptyIcon: "clock.arrow.circlepath",
-                    emptyTitle: "No past events",
+                    emptyTitle: "No past events \u{1F550}",
                     emptyMessage: "Your attended gatherings will appear here.",
                     showRateBadge: true
                 )
@@ -154,7 +154,7 @@ private struct MyEventsSavedList: View {
         if gatherings.isEmpty {
             EmptyStateView(
                 icon: "bookmark",
-                title: "No saved events",
+                title: "No saved events \u{1F516}",
                 message: "Bookmark gatherings to find them here."
             )
         } else {

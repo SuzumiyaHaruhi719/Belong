@@ -48,7 +48,7 @@ private struct SavedGatheringsContent: View {
             } else if viewModel.savedGatherings.isEmpty {
                 EmptyStateView(
                     icon: "bookmark",
-                    title: "No saved gatherings",
+                    title: "No saved gatherings \u{1F516}",
                     message: "Bookmark gatherings to find them here."
                 )
             } else {

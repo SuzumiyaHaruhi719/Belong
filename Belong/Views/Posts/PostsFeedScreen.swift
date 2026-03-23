@@ -76,7 +76,7 @@ private struct PostsFeedContent: View {
             } else {
                 EmptyStateView(
                     icon: "square.and.pencil",
-                    title: "No posts yet",
+                    title: "No posts yet \u{1F4DD}",
                     message: "Follow people or explore tags to see posts in your feed."
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
