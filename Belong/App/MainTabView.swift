@@ -79,9 +79,11 @@ struct MainTabView: View {
             let content = (try? insert.record["content"]?.value as? String) ?? ""
             let conversationId = (try? insert.record["conversation_id"]?.value as? String) ?? ""
 
+            print("[Banner] Realtime insert: sender=\(senderId) conv=\(conversationId) content=\(content.prefix(30))")
             if senderId != myId {
                 // Bump badge
                 appState.unreadChatCount += 1
+                print("[Banner] Showing banner for message from \(senderId)")
 
                 // Fetch sender info for banner
                 let senderInfo = await fetchSenderInfo(senderId: senderId)

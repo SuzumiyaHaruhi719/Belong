@@ -120,23 +120,24 @@ struct InAppBannerOverlay: ViewModifier {
     @Environment(AppState.self) private var appState
 
     func body(content: Content) -> some View {
-        content
-            .overlay(alignment: .top) {
-                if bannerManager.isVisible, let banner = bannerManager.currentBanner {
-                    MessageBannerView(
-                        banner: banner,
-                        onTap: {
-                            handleTap(banner)
-                        },
-                        onDismiss: {
-                            bannerManager.dismiss()
-                        }
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.top, 4)
-                    .zIndex(999)
-                }
+        ZStack(alignment: .top) {
+            content
+
+            if bannerManager.isVisible, let banner = bannerManager.currentBanner {
+                MessageBannerView(
+                    banner: banner,
+                    onTap: {
+                        handleTap(banner)
+                    },
+                    onDismiss: {
+                        bannerManager.dismiss()
+                    }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 8)
+                .zIndex(9999)
             }
+        }
     }
 
     private func handleTap(_ banner: InAppBanner) {
