@@ -103,8 +103,9 @@ final class ChatDetailViewModel {
                     let senderId = (try? record["sender_id"]?.value as? String) ?? ""
                     let myId = SupabaseManager.shared.currentUserId ?? ""
 
-                    // Skip messages we sent ourselves (already in the list)
-                    if senderId == myId { continue }
+                    // Skip if this message is already in the list (sent by us via sendMessage)
+                    let msgId = (try? record["id"]?.value as? String) ?? ""
+                    if !msgId.isEmpty && self.messages.contains(where: { $0.id == msgId }) { continue }
 
                     let newMessage = Message(
                         id: (try? record["id"]?.value as? String) ?? UUID().uuidString,
