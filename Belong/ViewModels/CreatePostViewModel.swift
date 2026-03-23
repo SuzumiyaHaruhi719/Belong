@@ -104,7 +104,7 @@ final class CreatePostViewModel {
     // MARK: - Publish
 
     func publish() async {
-        guard canPublish else { return }
+        guard canPublish, !isPublishing else { return }
 
         isPublishing = true
         publishError = nil

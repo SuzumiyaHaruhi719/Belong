@@ -146,11 +146,12 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
     }
 
     func leave(gatheringId: String) async throws {
-        let myId = try manager.requireUserId()
-        try await manager.client.from("gathering_members")
-            .delete()
-            .eq("gathering_id", value: gatheringId)
-            .eq("user_id", value: myId)
+        // Use leave_gathering RPC to atomically remove from both
+        // gathering_members AND the group chat conversation_members.
+        // Previously this only deleted gathering_members, leaving the
+        // user as a ghost member in the group chat.
+        try await manager.client
+            .rpc("leave_gathering", params: LeaveGatheringParams(pGatheringId: gatheringId))
             .execute()
     }
 

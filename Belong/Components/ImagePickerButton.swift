@@ -43,7 +43,7 @@ struct ImagePickerButton<Label: View>: View {
 // Used on profile banner, gathering cover, avatar.
 
 struct ImageUploadOverlay: View {
-    enum UploadState {
+    enum UploadState: Equatable {
         case idle
         case uploading
         case success

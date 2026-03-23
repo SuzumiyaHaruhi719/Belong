@@ -97,4 +97,4 @@ final class GatheringDetailViewModel {
         }
     }
 }
- 
+

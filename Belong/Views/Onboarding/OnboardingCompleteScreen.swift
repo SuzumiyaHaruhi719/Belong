@@ -113,9 +113,19 @@ struct OnboardingCompleteAction: View {
                         city: viewModel.selectedCity.isEmpty ? nil : viewModel.selectedCity,
                         school: viewModel.selectedSchool.isEmpty ? nil : viewModel.selectedSchool
                     )
-                    // Save language
+                    // Save language and avatar selection
+                    var extraFields: [String: String] = [:]
                     if !viewModel.selectedLanguage.isEmpty {
-                        try? await deps.userService.updateProfile(["app_language": viewModel.selectedLanguage])
+                        extraFields["app_language"] = viewModel.selectedLanguage
+                    }
+                    // Persist chosen avatar emoji as default_avatar_id (1-indexed)
+                    let avatarEmojis = ["🌿", "⭐", "🔥", "🌙", "🍊", "🌺", "💜", "🦋", "🌊", "✨"]
+                    if !viewModel.selectedAvatar.isEmpty,
+                       let idx = avatarEmojis.firstIndex(of: viewModel.selectedAvatar) {
+                        extraFields["default_avatar_id"] = "\(idx + 1)"
+                    }
+                    if !extraFields.isEmpty {
+                        try? await deps.userService.updateProfile(extraFields)
                     }
                 }
 

@@ -70,24 +70,28 @@ private struct ChatInfoDMSections: View {
         // Profile preview
         Section {
             if let member = otherMember {
-                VStack(spacing: Spacing.md) {
-                    AvatarView(imageURL: member.avatarURL, emoji: member.avatarEmoji, size: .xlarge)
-                    Text(member.displayName)
-                        .font(BelongFont.h2())
-                        .foregroundStyle(BelongColor.textPrimary)
+                NavigationLink(value: ProfileRoute.userProfile(member.userId)) {
+                    VStack(spacing: Spacing.md) {
+                        AvatarView(imageURL: member.avatarURL, emoji: member.avatarEmoji, size: .xlarge)
+                        Text(member.displayName)
+                            .font(BelongFont.h2())
+                            .foregroundStyle(BelongColor.textPrimary)
+                        Text("View Profile")
+                            .font(BelongFont.secondaryMedium())
+                            .foregroundStyle(BelongColor.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.md)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.md)
+                .buttonStyle(.plain)
                 .listRowBackground(Color.clear)
             }
         }
 
         // Shared Media
         Section("Shared Media") {
-            NavigationLink(value: ChatRoute.conversationInfo(conversation.id)) {
-                Label("Photos & Media", systemImage: "photo.on.rectangle")
-                    .foregroundStyle(BelongColor.textPrimary)
-            }
+            Label("Photos & Media", systemImage: "photo.on.rectangle")
+                .foregroundStyle(BelongColor.textTertiary)
         }
 
         // Actions
@@ -143,21 +147,22 @@ private struct ChatInfoGroupSections: View {
         // Members
         Section("Members") {
             ForEach(conversation.members, id: \.userId) { member in
-                UserRow(
-                    avatarURL: member.avatarURL,
-                    avatarEmoji: member.avatarEmoji,
-                    name: member.displayName
-                )
-                .listRowInsets(EdgeInsets())
+                NavigationLink(value: ProfileRoute.userProfile(member.userId)) {
+                    UserRow(
+                        avatarURL: member.avatarURL,
+                        avatarEmoji: member.avatarEmoji,
+                        name: member.displayName
+                    )
+                    .listRowInsets(EdgeInsets())
+                }
+                .buttonStyle(.plain)
             }
         }
 
         // Shared Media
         Section("Shared Media") {
-            NavigationLink(value: ChatRoute.conversationInfo(conversation.id)) {
-                Label("Photos & Media", systemImage: "photo.on.rectangle")
-                    .foregroundStyle(BelongColor.textPrimary)
-            }
+            Label("Photos & Media", systemImage: "photo.on.rectangle")
+                .foregroundStyle(BelongColor.textTertiary)
         }
 
         // Actions

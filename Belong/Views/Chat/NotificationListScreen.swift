@@ -137,7 +137,7 @@ private struct NotificationListLoaded: View {
                     NotificationSectionHeader(title: "New", count: viewModel.unread.count)
 
                     ForEach(viewModel.unread) { notification in
-                        NotificationRow(notification: notification) {
+                        NotificationDeepLinkRow(notification: notification) {
                             Task { await viewModel.markRead(id: notification.id) }
                         }
                         Divider().padding(.leading, Layout.screenPadding + 48)
@@ -150,7 +150,7 @@ private struct NotificationListLoaded: View {
                         .padding(.top, viewModel.unread.isEmpty ? 0 : Spacing.md)
 
                     ForEach(viewModel.read) { notification in
-                        NotificationRow(notification: notification)
+                        NotificationDeepLinkRow(notification: notification)
                         Divider().padding(.leading, Layout.screenPadding + 48)
                     }
                 }
@@ -160,6 +160,42 @@ private struct NotificationListLoaded: View {
         .refreshable {
             await viewModel.load()
         }
+    }
+}
+
+// MARK: - Deep-Linkable Notification Row
+
+private struct NotificationDeepLinkRow: View {
+    let notification: AppNotification
+    var onTap: (() -> Void)? = nil
+
+    var body: some View {
+        Group {
+            if let targetId = notification.targetId, !targetId.isEmpty {
+                switch notification.targetType {
+                case "post":
+                    NavigationLink(value: PostsRoute.detail(Post.placeholder(id: targetId))) {
+                        NotificationRow(notification: notification)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded { onTap?() })
+                case "gathering":
+                    NavigationLink(value: GatheringsRoute.detail(Gathering.placeholder(id: targetId))) {
+                        NotificationRow(notification: notification)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded { onTap?() })
+                case "user":
+                    NavigationLink(value: ProfileRoute.userProfile(targetId)) {
+                        NotificationRow(notification: notification)
+                    }
+                    .simultaneousGesture(TapGesture().onEnded { onTap?() })
+                default:
+                    NotificationRow(notification: notification, onTap: onTap)
+                }
+            } else {
+                NotificationRow(notification: notification, onTap: onTap)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

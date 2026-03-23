@@ -49,8 +49,10 @@ private struct SettingsContent: View {
         .confirmationDialog("Log Out", isPresented: $viewModel.showLogoutConfirm) {
             Button("Log Out", role: .destructive) {
                 Task {
-                    await viewModel.logout()
-                    await appState.logout()
+                    let success = await viewModel.logout()
+                    if success {
+                        await appState.logout()
+                    }
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -60,13 +62,23 @@ private struct SettingsContent: View {
         .confirmationDialog("Delete Account", isPresented: $viewModel.showDeleteConfirm) {
             Button("Delete Account", role: .destructive) {
                 Task {
-                    await viewModel.deleteAccount()
-                    await appState.logout()
+                    let success = await viewModel.deleteAccount()
+                    if success {
+                        await appState.logout()
+                    }
                 }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This action cannot be undone. All your data will be permanently deleted.")
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK") { viewModel.error = nil }
+        } message: {
+            Text(viewModel.error ?? "Please try again.")
         }
     }
 }

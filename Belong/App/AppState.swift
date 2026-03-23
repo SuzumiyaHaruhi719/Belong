@@ -4,7 +4,7 @@ import Auth
 
 @Observable @MainActor
 final class AppState {
-    enum AuthStatus { case unknown, onboarding, authenticated }
+    enum AuthStatus { case unknown, onboarding, incompleteOnboarding, authenticated }
 
     enum MainTab: String, CaseIterable {
         case gatherings, posts, create, chat, profile
@@ -55,7 +55,11 @@ final class AppState {
 
     func login(user: User) {
         currentUser = user
-        authStatus = .authenticated
+        if user.isOnboardingComplete {
+            authStatus = .authenticated
+        } else {
+            authStatus = .incompleteOnboarding
+        }
     }
 
     func logout() async {
@@ -86,12 +90,19 @@ final class AppState {
                     .execute()
                     .value,
                    let row = rows.first {
-                    currentUser = mapUserRow(row)
-                    authStatus = .authenticated
+                    let user = mapUserRow(row)
+                    currentUser = user
+                    if user.isOnboardingComplete {
+                        authStatus = .authenticated
+                    } else {
+                        // Session valid but profile incomplete — resume onboarding
+                        authStatus = .incompleteOnboarding
+                    }
                     return
                 }
-                // Session valid but profile fetch failed (network issue) — still authenticated
-                // Construct minimal user from session data
+                // Session valid but profile fetch failed (network issue).
+                // We can't tell if onboarding is complete, so try authenticated
+                // and let the profile screen refresh.
                 currentUser = User(
                     id: userId,
                     email: session.user.email ?? "",

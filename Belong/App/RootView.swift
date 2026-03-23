@@ -16,6 +16,8 @@ struct RootView: View {
                 SplashView()
             case .onboarding:
                 OnboardingFlow()
+            case .incompleteOnboarding:
+                OnboardingFlow()
             case .authenticated:
                 MainTabView()
                     .inAppBannerOverlay()

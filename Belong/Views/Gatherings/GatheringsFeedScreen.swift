@@ -121,13 +121,15 @@ struct GatheringsFeedErrorContent: View {
 // MARK: - Empty
 
 struct GatheringsFeedEmptyContent: View {
+    @Environment(AppState.self) private var appState
+
     var body: some View {
         EmptyStateView(
             icon: "calendar",
             title: "No gatherings yet",
             message: "Nothing happening nearby right now. You could be the first to host one.",
             ctaTitle: "Host a gathering",
-            onCTA: {}
+            onCTA: { appState.showCreateGatheringFlow = true }
         )
         .frame(maxWidth: .infinity)
         .padding(.top, Spacing.xxxl)

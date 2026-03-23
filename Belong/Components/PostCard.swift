@@ -11,6 +11,7 @@ struct PostCard: View {
             PostCardCoverImage(coverImage: post.coverImage)
             PostCardContent(
                 post: post,
+                authorId: post.authorId,
                 onLike: onLike,
                 onComment: onComment,
                 onBookmark: onBookmark
@@ -49,6 +50,7 @@ struct PostCardCoverImage: View {
 
 struct PostCardContent: View {
     let post: Post
+    var authorId: String = ""
     var onLike: (() -> Void)?
     var onComment: (() -> Void)?
     var onBookmark: (() -> Void)?
@@ -56,6 +58,7 @@ struct PostCardContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             PostCardAuthorRow(
+                authorId: authorId,
                 name: post.authorName,
                 emoji: post.authorAvatarEmoji,
                 avatarURL: post.authorAvatarURL
@@ -84,11 +87,23 @@ struct PostCardContent: View {
 }
 
 struct PostCardAuthorRow: View {
+    var authorId: String = ""
     let name: String
     let emoji: String
     let avatarURL: URL?
 
     var body: some View {
+        if !authorId.isEmpty {
+            NavigationLink(value: ProfileRoute.userProfile(authorId)) {
+                authorContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            authorContent
+        }
+    }
+
+    private var authorContent: some View {
         HStack(spacing: Spacing.sm) {
             AvatarView(imageURL: avatarURL, emoji: emoji, size: .small)
                 .frame(width: 24, height: 24)

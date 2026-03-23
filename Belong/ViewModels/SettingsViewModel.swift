@@ -34,14 +34,18 @@ final class SettingsViewModel {
         notificationsEnabled = user.notificationsEnabled
     }
 
-    func logout() async {
+    @discardableResult
+    func logout() async -> Bool {
         isLoggingOut = true
+        error = nil
         do {
             try await authService.logout()
             isLoggingOut = false
+            return true
         } catch {
             self.error = error.localizedDescription
             isLoggingOut = false
+            return false
         }
     }
 
@@ -51,14 +55,18 @@ final class SettingsViewModel {
     }
 
     /// Called after user confirms deletion in the confirmation dialog.
-    func deleteAccount() async {
+    @discardableResult
+    func deleteAccount() async -> Bool {
         isDeletingAccount = true
+        error = nil
         do {
             try await authService.deleteAccount()
             isDeletingAccount = false
+            return true
         } catch {
             self.error = error.localizedDescription
             isDeletingAccount = false
+            return false
         }
     }
 }

@@ -60,7 +60,7 @@ private struct PostLikesList: View {
                 ForEach(users) { user in
                     UserRow(
                         avatarURL: user.avatarURL,
-                        avatarEmoji: user.avatarEmoji,
+                        avatarEmoji: user.avatarEmoji ?? "👤",
                         name: user.displayName,
                         subtitle: "@\(user.username)",
                         trailingActionTitle: "Follow",
@@ -71,14 +71,6 @@ private struct PostLikesList: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - User Convenience
-
-private extension User {
-    var avatarEmoji: String {
-        "👤"
     }
 }
 

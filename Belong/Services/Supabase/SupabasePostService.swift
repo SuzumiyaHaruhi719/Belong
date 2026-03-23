@@ -60,43 +60,22 @@ final class SupabasePostService: PostServiceProtocol {
     }
 
     func create(content: String, imageURLs: [URL], tags: [String], visibility: PostVisibility, linkedGatheringId: String?, city: String? = nil, school: String? = nil) async throws -> Post {
-        let myId = try manager.requireUserId()
-        let postId = UUID().uuidString.lowercased()
-
-        // 1. Insert post
-        let postRow = DBPost(
-            id: postId,
-            authorId: myId,
-            content: content,
-            visibility: visibility.rawValue,
-            linkedGatheringId: linkedGatheringId,
-            city: city, school: school,
-            likeCount: 0, commentCount: 0, saveCount: 0,
-            createdAt: nil
+        // Atomic RPC: creates post + images + tags in one transaction
+        let params = CreatePostWithTagsParams(
+            pContent: content,
+            pVisibility: visibility.rawValue,
+            pImageUrls: imageURLs.map { $0.absoluteString },
+            pTags: tags,
+            pCity: city,
+            pSchool: school,
+            pLinkedGatheringId: linkedGatheringId
         )
-        try await manager.client.from("posts")
-            .insert(postRow)
+        let result: CreatePostResult = try await manager.client
+            .rpc("create_post_with_tags", params: params)
             .execute()
+            .value
 
-        // 2. Insert images
-        if !imageURLs.isEmpty {
-            let imageRows = imageURLs.enumerated().map { idx, url in
-                DBPostImage(id: UUID().uuidString.lowercased(), postId: postId, imageUrl: url.absoluteString, displayOrder: idx, width: nil, height: nil)
-            }
-            try await manager.client.from("post_images")
-                .insert(imageRows)
-                .execute()
-        }
-
-        // 3. Insert tags
-        if !tags.isEmpty {
-            let tagRows = tags.map { DBPostTag(postId: postId, tagValue: $0) }
-            try await manager.client.from("post_tags")
-                .insert(tagRows)
-                .execute()
-        }
-
-        return try await fetchDetail(id: postId)
+        return try await fetchDetail(id: result.postId)
     }
 
     func delete(postId: String) async throws {
@@ -116,31 +95,12 @@ final class SupabasePostService: PostServiceProtocol {
     }
 
     func toggleSave(postId: String) async throws -> Bool {
-        let myId = try manager.requireUserId()
-
-        // Check if already saved
-        let existing: [PostSaveRow] = try await manager.client.from("post_saves")
-            .select("post_id")
-            .eq("user_id", value: myId)
-            .eq("post_id", value: postId)
+        // Atomic RPC: toggle save + recount save_count in one call
+        let result: ToggleSaveResult = try await manager.client
+            .rpc("toggle_post_save", params: ToggleSaveParams(pPostId: postId))
             .execute()
             .value
-
-        if existing.isEmpty {
-            // Save
-            try await manager.client.from("post_saves")
-                .insert(PostSaveRow(postId: postId, userId: myId))
-                .execute()
-            return true
-        } else {
-            // Unsave
-            try await manager.client.from("post_saves")
-                .delete()
-                .eq("user_id", value: myId)
-                .eq("post_id", value: postId)
-                .execute()
-            return false
-        }
+        return result.saved
     }
 
     func fetchComments(postId: String, page: Int) async throws -> [PostComment] {
@@ -254,6 +214,22 @@ private struct ToggleLikeResult: Codable {
     }
 }
 
+private struct ToggleSaveResult: Codable {
+    let saved: Bool
+    let saveCount: Int
+    enum CodingKeys: String, CodingKey {
+        case saved
+        case saveCount = "save_count"
+    }
+}
+
+private struct CreatePostResult: Codable {
+    let postId: String
+    enum CodingKeys: String, CodingKey {
+        case postId = "post_id"
+    }
+}
+
 private struct PostLikeRow: Codable {
     let postId: String
     enum CodingKeys: String, CodingKey {
@@ -263,15 +239,7 @@ private struct PostLikeRow: Codable {
 
 private struct PostSaveRow: Codable {
     let postId: String
-    let userId: String?
-
-    init(postId: String, userId: String? = nil) {
-        self.postId = postId
-        self.userId = userId
-    }
-
     enum CodingKeys: String, CodingKey {
         case postId = "post_id"
-        case userId = "user_id"
     }
 }

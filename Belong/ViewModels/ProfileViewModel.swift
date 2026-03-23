@@ -52,6 +52,18 @@ final class ProfileViewModel {
         }
     }
 
+    func loadUserProfile(userId: String) async {
+        isLoading = true
+        error = nil
+        do {
+            user = try await userService.fetchProfile(userId: userId)
+            isLoading = false
+        } catch {
+            self.error = error.localizedDescription
+            isLoading = false
+        }
+    }
+
     // MARK: - Posts & Gatherings
 
     func loadMyPosts() async {

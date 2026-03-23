@@ -157,7 +157,7 @@ struct InAppBannerOverlay: ViewModifier {
             object: nil,
             userInfo: [
                 "conversationId": banner.conversationId,
-                "conversation": banner.conversation as Any
+                "conversation": banner.conversation
             ]
         )
     }

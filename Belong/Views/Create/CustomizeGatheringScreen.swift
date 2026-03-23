@@ -29,6 +29,7 @@ struct CustomizeGatheringScreen: View {
     @Binding var path: NavigationPath
     @State private var attemptedPreview = false
     @State private var showDraftSavedBanner = false
+    @State private var bannerDismissTask: Task<Void, Never>?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -71,8 +72,12 @@ struct CustomizeGatheringScreen: View {
             }
 
             // Sticky bottom button
-            CustomizeGatheringBottomBar {
+            CustomizeGatheringBottomBar(isDisabled: viewModel.isCoverUploading) {
                 attemptedPreview = true
+                if viewModel.isCoverUploading {
+                    viewModel.draftError = "Please wait for the cover image to finish uploading"
+                    return
+                }
                 if viewModel.validateForm() {
                     path.append(CreateRoute.previewGathering)
                 }
@@ -87,9 +92,15 @@ struct CustomizeGatheringScreen: View {
                     Task {
                         await viewModel.saveDraft()
                         if viewModel.draftSaved {
+                            // Cancel any previous banner dismiss to avoid race
+                            bannerDismissTask?.cancel()
                             withAnimation { showDraftSavedBanner = true }
-                            try? await Task.sleep(for: .seconds(2.5))
-                            withAnimation { showDraftSavedBanner = false }
+                            bannerDismissTask = Task {
+                                try? await Task.sleep(for: .seconds(2.5))
+                                if !Task.isCancelled {
+                                    withAnimation { showDraftSavedBanner = false }
+                                }
+                            }
                         }
                     }
                 } label: {
@@ -100,7 +111,7 @@ struct CustomizeGatheringScreen: View {
                         Text("Save draft")
                     }
                 }
-                .disabled(viewModel.isSavingDraft)
+                .disabled(viewModel.isSavingDraft || viewModel.isCoverUploading)
                 .font(BelongFont.secondaryMedium())
                 .foregroundStyle(BelongColor.primary)
             }
@@ -358,15 +369,17 @@ private struct CustomizeGatheringTagsSection: View {
 // MARK: - Bottom Bar
 
 private struct CustomizeGatheringBottomBar: View {
+    var isDisabled: Bool = false
     let onPreview: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             Divider()
             BelongButton(
-                title: "Preview",
+                title: isDisabled ? "Uploading image…" : "Preview",
                 style: .primary,
                 isFullWidth: true,
+                isDisabled: isDisabled,
                 leadingIcon: "arrow.right",
                 action: onPreview
             )

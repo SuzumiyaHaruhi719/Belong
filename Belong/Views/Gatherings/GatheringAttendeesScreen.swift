@@ -30,7 +30,7 @@ struct GatheringAttendeesScreen: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                GatheringAttendeesListContent(attendees: attendees)
+                GatheringAttendeesListContent(attendees: attendees, container: container)
             }
         }
         .background(BelongColor.background)
@@ -80,13 +80,14 @@ struct GatheringAttendeesLoadingContent: View {
 
 struct GatheringAttendeesListContent: View {
     let attendees: [GatheringMember]
+    let container: DependencyContainer
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(attendees) { member in
                     VStack(spacing: 0) {
-                        GatheringAttendeeRow(member: member)
+                        GatheringAttendeeRow(member: member, container: container)
                         if member.id != attendees.last?.id {
                             Divider()
                                 .padding(.leading, Layout.screenPadding + Layout.touchTargetMin + Spacing.md)
@@ -102,6 +103,13 @@ struct GatheringAttendeesListContent: View {
 
 struct GatheringAttendeeRow: View {
     let member: GatheringMember
+    let container: DependencyContainer
+    @State private var isFollowing = false
+    @State private var isLoadingFollow = false
+
+    private var isOwnProfile: Bool {
+        member.userId == SupabaseManager.shared.currentUserId
+    }
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -131,20 +139,56 @@ struct GatheringAttendeeRow: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Text("Follow")
-                    .font(BelongFont.secondaryMedium())
-                    .foregroundStyle(BelongColor.primary)
-                    .padding(.horizontal, Spacing.md)
-                    .frame(height: 34)
-                    .background(BelongColor.surfaceSecondary)
-                    .clipShape(Capsule())
+            if !isOwnProfile {
+                Button {
+                    Task { await toggleFollow() }
+                } label: {
+                    Text(isFollowing ? "Following" : "Follow")
+                        .font(BelongFont.secondaryMedium())
+                        .foregroundStyle(isFollowing ? BelongColor.textSecondary : BelongColor.primary)
+                        .padding(.horizontal, Spacing.md)
+                        .frame(height: 34)
+                        .background(isFollowing ? BelongColor.surface : BelongColor.surfaceSecondary)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(isFollowing ? BelongColor.border : .clear, lineWidth: 1)
+                        )
+                }
+                .disabled(isLoadingFollow)
+                .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+                .accessibilityLabel(isFollowing ? "Unfollow \(member.userName)" : "Follow \(member.userName)")
             }
-            .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
-            .accessibilityLabel("Follow \(member.userName)")
         }
         .frame(height: 56)
         .padding(.horizontal, Layout.screenPadding)
+        .task {
+            await loadFollowState()
+        }
+    }
+
+    private func loadFollowState() async {
+        guard !isOwnProfile else { return }
+        do {
+            isFollowing = try await container.userService.isFollowing(userId: member.userId)
+        } catch {
+            // Best-effort — default to not following
+        }
+    }
+
+    private func toggleFollow() async {
+        let wasFollowing = isFollowing
+        isFollowing = !wasFollowing
+        isLoadingFollow = true
+        do {
+            if wasFollowing {
+                try await container.userService.unfollow(userId: member.userId)
+            } else {
+                try await container.userService.follow(userId: member.userId)
+            }
+        } catch {
+            isFollowing = wasFollowing
+        }
+        isLoadingFollow = false
     }
 }
 

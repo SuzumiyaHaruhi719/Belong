@@ -24,6 +24,16 @@ struct Post: Identifiable, Codable, Hashable {
     var linkedGatheringTitle: String?
 
     var coverImage: PostImage? { images.sorted(by: { $0.displayOrder < $1.displayOrder }).first }
+
+    /// Creates a minimal placeholder used for navigation when only the ID is known.
+    static func placeholder(id: String, title: String = "") -> Post {
+        Post(
+            id: id, authorId: "", content: title, images: [], tags: [],
+            visibility: .publicPost, city: "", likeCount: 0, commentCount: 0,
+            saveCount: 0, isLiked: false, isSaved: false, createdAt: Date(),
+            authorName: "", authorUsername: "", authorAvatarEmoji: "👤"
+        )
+    }
 }
 
 enum PostVisibility: String, Codable, CaseIterable {

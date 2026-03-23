@@ -42,11 +42,14 @@ final class SupabaseChatService: ChatServiceProtocol {
             .value
         let userMap = Dictionary(uniqueKeysWithValues: users.map { ($0.id, $0) })
 
-        // Batch-fetch all recent messages for these conversations (sorted desc)
+        // Batch-fetch recent messages for these conversations (sorted desc).
+        // Cap at 500 to prevent unbounded growth; enough for last-message
+        // display and approximate unread counts in most cases.
         let allMessages: [DBMessage] = try await manager.client.from("messages")
             .select()
             .in("conversation_id", values: convIds)
             .order("created_at", ascending: false)
+            .limit(500)
             .execute()
             .value
 
@@ -190,6 +193,9 @@ final class SupabaseChatService: ChatServiceProtocol {
 
         let myId = manager.currentUserId ?? ""
 
+        // Use server-provided created_at for consistent ordering
+        let serverDate = parseSupabaseDate(result.createdAt)
+
         return Message(
             id: result.id ?? UUID().uuidString,
             conversationId: conversationId,
@@ -201,7 +207,7 @@ final class SupabaseChatService: ChatServiceProtocol {
             reactions: [],
             replyTo: nil,
             status: .sent,
-            createdAt: Date(),
+            createdAt: serverDate,
             senderName: "You",
             senderAvatarEmoji: "🙂",
             isCurrentUser: true,

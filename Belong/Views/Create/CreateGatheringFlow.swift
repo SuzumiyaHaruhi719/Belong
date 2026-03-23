@@ -34,6 +34,8 @@ struct CreateGatheringFlow: View {
                     GatheringPublishedScreen(
                         gatheringId: gatheringId,
                         onViewGathering: {
+                            // Switch to Gatherings tab so user sees their new gathering
+                            appState.selectedTab = .gatherings
                             dismiss()
                         },
                         onShare: {

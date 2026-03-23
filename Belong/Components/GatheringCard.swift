@@ -125,6 +125,7 @@ struct GatheringCardBody: View {
                 .lineLimit(2)
 
             GatheringCardHostRow(
+                hostId: gathering.hostId,
                 hostName: gathering.hostName,
                 hostEmoji: gathering.hostAvatarEmoji
             )
@@ -139,10 +140,22 @@ struct GatheringCardBody: View {
 }
 
 struct GatheringCardHostRow: View {
+    var hostId: String = ""
     let hostName: String
     let hostEmoji: String
 
     var body: some View {
+        if !hostId.isEmpty {
+            NavigationLink(value: ProfileRoute.userProfile(hostId)) {
+                hostContent
+            }
+            .buttonStyle(.plain)
+        } else {
+            hostContent
+        }
+    }
+
+    private var hostContent: some View {
         HStack(spacing: Spacing.sm) {
             AvatarView(emoji: hostEmoji, size: .small)
             Text(hostName)

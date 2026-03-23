@@ -113,6 +113,10 @@ final class ChatDetailViewModel {
                     let senderMember = self.conversation?.members.first { $0.userId == senderId }
                     let resolvedName = senderMember?.displayName ?? "User"
 
+                    // Parse server timestamp for correct ordering
+                    let createdAtStr = (try? record["created_at"]?.value as? String) ?? ""
+                    let createdAt = createdAtStr.isEmpty ? Date() : parseSupabaseDate(createdAtStr)
+
                     let newMessage = Message(
                         id: (try? record["id"]?.value as? String) ?? UUID().uuidString,
                         conversationId: conversationId,
@@ -124,7 +128,7 @@ final class ChatDetailViewModel {
                         reactions: [],
                         replyTo: nil,
                         status: .delivered,
-                        createdAt: Date(),
+                        createdAt: createdAt,
                         senderName: resolvedName,
                         senderAvatarEmoji: "🙂",
                         isCurrentUser: senderId == myId,

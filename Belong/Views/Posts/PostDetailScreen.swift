@@ -73,13 +73,7 @@ private struct PostDetailScrollContent: View {
 
                 VStack(alignment: .leading, spacing: Spacing.base) {
                     // Author row
-                    PostDetailAuthorRow(post: post, onFollowResult: { success in
-                        if !success {
-                            // Revert handled inside PostDetailAuthorRow
-                        }
-                    }, followAction: {
-                        try await viewModel.container.userService.follow(userId: post.authorId)
-                    })
+                    PostDetailAuthorRow(post: post)
 
                     // Content with hashtag highlighting
                     PostDetailContentText(content: post.content, tags: post.tags)
@@ -125,54 +119,79 @@ private struct PostDetailScrollContent: View {
 
 private struct PostDetailAuthorRow: View {
     let post: Post
-    let onFollowResult: (Bool) -> Void
-    let followAction: () async throws -> Void
+    @Environment(DependencyContainer.self) private var container
     @State private var isFollowing = false
     @State private var isProcessing = false
 
+    private var isOwnPost: Bool {
+        post.authorId == SupabaseManager.shared.currentUserId
+    }
+
     var body: some View {
         HStack(spacing: Spacing.md) {
-            AvatarView(imageURL: post.authorAvatarURL, emoji: post.authorAvatarEmoji, size: .medium)
-                .frame(width: 36, height: 36)
-                .clipShape(Circle())
+            NavigationLink(value: ProfileRoute.userProfile(post.authorId)) {
+                HStack(spacing: Spacing.md) {
+                    AvatarView(imageURL: post.authorAvatarURL, emoji: post.authorAvatarEmoji, size: .medium)
+                        .frame(width: 36, height: 36)
+                        .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(BelongFont.bodyMedium())
-                    .foregroundStyle(BelongColor.textPrimary)
-                Text("@\(post.authorUsername)")
-                    .font(BelongFont.caption())
-                    .foregroundStyle(BelongColor.textSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(post.authorName)
+                            .font(BelongFont.bodyMedium())
+                            .foregroundStyle(BelongColor.textPrimary)
+                        Text("@\(post.authorUsername)")
+                            .font(BelongFont.caption())
+                            .foregroundStyle(BelongColor.textSecondary)
+                    }
+                }
             }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            Button(action: {
-                guard !isFollowing, !isProcessing else { return }
-                isFollowing = true
-                isProcessing = true
-                Task {
-                    do {
-                        try await followAction()
-                        onFollowResult(true)
-                    } catch {
-                        isFollowing = false
-                        onFollowResult(false)
-                    }
-                    isProcessing = false
+            if !isOwnPost {
+                Button {
+                    Task { await toggleFollow() }
+                } label: {
+                    Text(isFollowing ? "Following" : "Follow")
+                        .font(BelongFont.secondaryMedium())
+                        .foregroundStyle(isFollowing ? BelongColor.textSecondary : BelongColor.primary)
+                        .padding(.horizontal, Spacing.md)
+                        .frame(height: 34)
+                        .background(isFollowing ? BelongColor.surface : BelongColor.surfaceSecondary)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(isFollowing ? BelongColor.border : .clear, lineWidth: 1)
+                        )
                 }
-            }) {
-                Text(isFollowing ? "Following" : "Follow")
-                    .font(BelongFont.secondaryMedium())
-                    .foregroundStyle(isFollowing ? BelongColor.textSecondary : BelongColor.primary)
-                    .padding(.horizontal, Spacing.md)
-                    .frame(height: 34)
-                    .background(isFollowing ? BelongColor.surface : BelongColor.surfaceSecondary)
-                    .clipShape(Capsule())
+                .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
+                .disabled(isProcessing)
             }
-            .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
-            .disabled(isFollowing || isProcessing)
         }
+        .task {
+            guard !isOwnPost else { return }
+            do {
+                isFollowing = try await container.userService.isFollowing(userId: post.authorId)
+            } catch {
+                // Best-effort — default to not following
+            }
+        }
+    }
+
+    private func toggleFollow() async {
+        let wasFollowing = isFollowing
+        isFollowing = !wasFollowing
+        isProcessing = true
+        do {
+            if wasFollowing {
+                try await container.userService.unfollow(userId: post.authorId)
+            } else {
+                try await container.userService.follow(userId: post.authorId)
+            }
+        } catch {
+            isFollowing = wasFollowing
+        }
+        isProcessing = false
     }
 }
 
@@ -367,15 +386,21 @@ struct PostCommentRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(alignment: .top, spacing: Spacing.sm) {
-                AvatarView(emoji: comment.authorAvatarEmoji, size: .small)
-                    .frame(width: 28, height: 28)
-                    .clipShape(Circle())
+                NavigationLink(value: ProfileRoute.userProfile(comment.authorId)) {
+                    AvatarView(emoji: comment.authorAvatarEmoji, size: .small)
+                        .frame(width: 28, height: 28)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: Spacing.xs) {
-                        Text(comment.authorUsername)
-                            .font(BelongFont.captionMedium())
-                            .foregroundStyle(BelongColor.textPrimary)
+                        NavigationLink(value: ProfileRoute.userProfile(comment.authorId)) {
+                            Text(comment.authorUsername)
+                                .font(BelongFont.captionMedium())
+                                .foregroundStyle(BelongColor.textPrimary)
+                        }
+                        .buttonStyle(.plain)
                         Text(comment.createdAt.postTimeAgo)
                             .font(BelongFont.caption())
                             .foregroundStyle(BelongColor.textTertiary)

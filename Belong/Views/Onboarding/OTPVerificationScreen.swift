@@ -50,7 +50,7 @@ struct OTPInput: View {
         @Bindable var vm = viewModel
         VStack(spacing: Spacing.base) {
             OTPField(code: $vm.otpCode) { code in
-                guard code.count == 6 else { return }
+                guard code.count == 6, !viewModel.isVerifyingOTP else { return }
                 Task {
                     await viewModel.verifyOTP()
                     if viewModel.otpVerified {

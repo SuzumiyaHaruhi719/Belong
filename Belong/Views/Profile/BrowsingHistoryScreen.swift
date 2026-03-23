@@ -83,7 +83,7 @@ private struct BrowsingHistoryContent: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(filteredHistory) { entry in
-                            BrowsingHistoryRow(entry: entry)
+                            BrowsingHistoryNavigableRow(entry: entry)
                             Divider()
                                 .padding(.leading, Layout.screenPadding + 56 + Spacing.md)
                         }
@@ -91,6 +91,32 @@ private struct BrowsingHistoryContent: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Navigable History Row
+
+private struct BrowsingHistoryNavigableRow: View {
+    let entry: BrowseHistoryEntry
+
+    var body: some View {
+        Group {
+            switch entry.targetType {
+            case .post:
+                NavigationLink(value: PostsRoute.detail(
+                    Post.placeholder(id: entry.targetId, title: entry.title)
+                )) {
+                    BrowsingHistoryRow(entry: entry)
+                }
+            case .gathering:
+                NavigationLink(value: GatheringsRoute.detail(
+                    Gathering.placeholder(id: entry.targetId, title: entry.title)
+                )) {
+                    BrowsingHistoryRow(entry: entry)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

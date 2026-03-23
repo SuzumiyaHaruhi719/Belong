@@ -392,6 +392,42 @@ nonisolated struct BlockUserParams: Codable, Sendable {
     }
 }
 
+nonisolated struct LeaveGatheringParams: Codable, Sendable {
+    let pGatheringId: String
+
+    enum CodingKeys: String, CodingKey {
+        case pGatheringId = "p_gathering_id"
+    }
+}
+
+nonisolated struct ToggleSaveParams: Codable, Sendable {
+    let pPostId: String
+
+    enum CodingKeys: String, CodingKey {
+        case pPostId = "p_post_id"
+    }
+}
+
+nonisolated struct CreatePostWithTagsParams: Codable, Sendable {
+    let pContent: String
+    let pVisibility: String
+    let pImageUrls: [String]
+    let pTags: [String]
+    let pCity: String?
+    let pSchool: String?
+    let pLinkedGatheringId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case pContent = "p_content"
+        case pVisibility = "p_visibility"
+        case pImageUrls = "p_image_urls"
+        case pTags = "p_tags"
+        case pCity = "p_city"
+        case pSchool = "p_school"
+        case pLinkedGatheringId = "p_linked_gathering_id"
+    }
+}
+
 nonisolated struct FollowParams: Codable, Sendable {
     let pTargetId: String
 

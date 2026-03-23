@@ -117,8 +117,11 @@ struct MainTabView: View {
 
                 guard senderId != myId else { continue }
 
-                // Always bump badge (visible when user returns from background)
-                appState.unreadChatCount += 1
+                // Only bump badge if user is NOT viewing this conversation
+                // (prevents badge drift when reading messages in real time)
+                if conversationId != bannerManager.activeConversationId {
+                    appState.unreadChatCount += 1
+                }
 
                 // Only build and show banner if app is in foreground
                 guard bannerManager.isAppActive else { continue }
@@ -133,14 +136,31 @@ struct MainTabView: View {
                     senderInfo = fetched
                 }
 
-                // Resolve conversation (cached)
-                let conv: Conversation?
+                // Resolve conversation (cached), with fallback so banner tap always navigates
+                let conv: Conversation
                 if let cached = conversationCache[conversationId] {
                     conv = cached
-                } else {
-                    let fetched = await fetchConversationForBanner(conversationId: conversationId)
-                    if let fetched { conversationCache[conversationId] = fetched }
+                } else if let fetched = await fetchConversationForBanner(conversationId: conversationId) {
+                    conversationCache[conversationId] = fetched
                     conv = fetched
+                } else {
+                    // Fallback: construct minimal Conversation so banner tap still works
+                    conv = Conversation(
+                        id: conversationId,
+                        type: .dm,
+                        title: senderInfo.name,
+                        lastMessageText: content.isEmpty ? nil : content,
+                        lastMessageAt: Date(),
+                        unreadCount: 1,
+                        members: [ConversationMemberInfo(
+                            userId: senderId,
+                            displayName: senderInfo.name,
+                            avatarEmoji: senderInfo.emoji,
+                            avatarURL: senderInfo.avatarURL
+                        )],
+                        createdAt: Date(),
+                        isMutualFollow: false
+                    )
                 }
 
                 let banner = InAppBanner(
@@ -220,6 +240,32 @@ struct GatheringsTabRoot: View {
                         GatheringSearchScreen(container: container)
                     }
                 }
+                .navigationDestination(for: ProfileRoute.self) { route in
+                    switch route {
+                    case .userProfile(let userId):
+                        UserProfileScreen(userId: userId)
+                    case .userFollowers(let userId):
+                        ConnectionsScreen(initialTab: .followers, userId: userId)
+                    case .userFollowing(let userId):
+                        ConnectionsScreen(initialTab: .following, userId: userId)
+                    default:
+                        EmptyView()
+                    }
+                }
+                .navigationDestination(for: PostsRoute.self) { route in
+                    switch route {
+                    case .detail(let post):
+                        PostDetailScreen(post: post)
+                    case .comments(let postId):
+                        PostCommentsScreen(postId: postId)
+                    case .likes(let postId):
+                        PostLikesScreen(postId: postId)
+                    case .userPosts(let userId):
+                        UserPostsScreen(mode: .user(userId))
+                    case .hashtagFeed(let tag):
+                        UserPostsScreen(mode: .hashtag(tag))
+                    }
+                }
                 .navigationDestination(for: ChatRoute.self) { route in
                     switch route {
                     case .notificationsComments:
@@ -255,6 +301,28 @@ struct PostsTabRoot: View {
                         UserPostsScreen(mode: .hashtag(tag))
                     }
                 }
+                .navigationDestination(for: ProfileRoute.self) { route in
+                    switch route {
+                    case .userProfile(let userId):
+                        UserProfileScreen(userId: userId)
+                    case .userFollowers(let userId):
+                        ConnectionsScreen(initialTab: .followers, userId: userId)
+                    case .userFollowing(let userId):
+                        ConnectionsScreen(initialTab: .following, userId: userId)
+                    default:
+                        EmptyView()
+                    }
+                }
+                .navigationDestination(for: GatheringsRoute.self) { route in
+                    switch route {
+                    case .detail(let gathering):
+                        GatheringDetailScreen(gathering: gathering, container: container)
+                    case .attendees(let gatheringId):
+                        GatheringAttendeesScreen(gatheringId: gatheringId, container: container)
+                    case .search:
+                        GatheringSearchScreen(container: container)
+                    }
+                }
         }
     }
 }
@@ -288,8 +356,36 @@ struct ChatTabRoot: View {
                     switch route {
                     case .userProfile(let userId):
                         UserProfileScreen(userId: userId)
+                    case .userFollowers(let userId):
+                        ConnectionsScreen(initialTab: .followers, userId: userId)
+                    case .userFollowing(let userId):
+                        ConnectionsScreen(initialTab: .following, userId: userId)
                     default:
                         EmptyView()
+                    }
+                }
+                .navigationDestination(for: PostsRoute.self) { route in
+                    switch route {
+                    case .detail(let post):
+                        PostDetailScreen(post: post)
+                    case .comments(let postId):
+                        PostCommentsScreen(postId: postId)
+                    case .likes(let postId):
+                        PostLikesScreen(postId: postId)
+                    case .userPosts(let userId):
+                        UserPostsScreen(mode: .user(userId))
+                    case .hashtagFeed(let tag):
+                        UserPostsScreen(mode: .hashtag(tag))
+                    }
+                }
+                .navigationDestination(for: GatheringsRoute.self) { route in
+                    switch route {
+                    case .detail(let gathering):
+                        GatheringDetailScreen(gathering: gathering, container: container)
+                    case .attendees(let gatheringId):
+                        GatheringAttendeesScreen(gatheringId: gatheringId, container: container)
+                    case .search:
+                        GatheringSearchScreen(container: container)
                     }
                 }
         }
@@ -328,6 +424,10 @@ struct ProfileTabRoot: View {
                         ConnectionsScreen(initialTab: .mutuals)
                     case .userProfile(let userId):
                         UserProfileScreen(userId: userId)
+                    case .userFollowers(let userId):
+                        ConnectionsScreen(initialTab: .followers, userId: userId)
+                    case .userFollowing(let userId):
+                        ConnectionsScreen(initialTab: .following, userId: userId)
                     case .myEvents:
                         MyEventsScreen()
                     case .myGatherings:
@@ -342,6 +442,30 @@ struct ProfileTabRoot: View {
                         AboutScreen()
                     case .browsingHistory:
                         BrowsingHistoryScreen()
+                    }
+                }
+                .navigationDestination(for: PostsRoute.self) { route in
+                    switch route {
+                    case .detail(let post):
+                        PostDetailScreen(post: post)
+                    case .comments(let postId):
+                        PostCommentsScreen(postId: postId)
+                    case .likes(let postId):
+                        PostLikesScreen(postId: postId)
+                    case .userPosts(let userId):
+                        UserPostsScreen(mode: .user(userId))
+                    case .hashtagFeed(let tag):
+                        UserPostsScreen(mode: .hashtag(tag))
+                    }
+                }
+                .navigationDestination(for: GatheringsRoute.self) { route in
+                    switch route {
+                    case .detail(let gathering):
+                        GatheringDetailScreen(gathering: gathering, container: container)
+                    case .attendees(let gatheringId):
+                        GatheringAttendeesScreen(gatheringId: gatheringId, container: container)
+                    case .search:
+                        GatheringSearchScreen(container: container)
                     }
                 }
         }

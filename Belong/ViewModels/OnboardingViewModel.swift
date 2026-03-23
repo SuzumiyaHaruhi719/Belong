@@ -93,7 +93,8 @@ final class OnboardingViewModel {
     }
 
     var isEmailValid: Bool {
-        email.lowercased().hasSuffix(".edu") || email.lowercased().hasSuffix(".edu.au")
+        let lowered = email.lowercased()
+        return email.contains("@") && (lowered.hasSuffix(".edu") || lowered.hasSuffix(".edu.au"))
     }
 
     var allPasswordRulesMet: Bool {
@@ -121,6 +122,8 @@ final class OnboardingViewModel {
     func validateEmail() {
         if email.isEmpty {
             emailError = nil
+        } else if !email.contains("@") {
+            emailError = "Please enter a valid email address"
         } else if !isEmailValid {
             emailError = "Please use a valid .edu email address"
         } else {
@@ -131,6 +134,7 @@ final class OnboardingViewModel {
     // MARK: - OTP
 
     func sendOTP() async {
+        guard !isSendingOTP else { return }
         validateEmail()
         guard emailError == nil, isEmailValid else { return }
         isSendingOTP = true
@@ -154,6 +158,7 @@ final class OnboardingViewModel {
     }
 
     func verifyOTP() async {
+        guard !isVerifyingOTP else { return }
         isVerifyingOTP = true
         otpError = nil
         defer { isVerifyingOTP = false }
@@ -237,6 +242,7 @@ final class OnboardingViewModel {
     // MARK: - Registration
 
     func register() async -> User? {
+        guard !isRegistering else { return nil }
         isRegistering = true
         registerError = nil
         defer { isRegistering = false }
@@ -257,14 +263,27 @@ final class OnboardingViewModel {
     // MARK: - Login
 
     func login() async -> User? {
+        guard !isLoggingIn else { return nil }
         isLoggingIn = true
         loginError = nil
         defer { isLoggingIn = false }
         do {
             let user = try await deps.authService.login(email: email, password: password)
             return user
+        } catch is SupabaseServiceError {
+            loginError = "Account not found. Please check your email or sign up."
+            return nil
         } catch {
-            loginError = "Invalid email or password. Please try again."
+            let msg = error.localizedDescription.lowercased()
+            if msg.contains("invalid") || msg.contains("credentials") || msg.contains("password") {
+                loginError = "Invalid email or password. Please try again."
+            } else if msg.contains("network") || msg.contains("internet") || msg.contains("offline") {
+                loginError = "Network error. Please check your connection and try again."
+            } else if msg.contains("email not confirmed") || msg.contains("not confirmed") {
+                loginError = "Please confirm your email before logging in."
+            } else {
+                loginError = "Login failed: \(error.localizedDescription)"
+            }
             return nil
         }
     }

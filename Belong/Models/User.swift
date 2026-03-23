@@ -26,6 +26,15 @@ struct User: Identifiable, Codable, Hashable {
     var lastActiveAt: Date
 
     var isOnboardingComplete: Bool { !city.isEmpty && !school.isEmpty }
+
+    /// Maps `defaultAvatarId` (1-indexed) back to the onboarding emoji set.
+    /// Returns nil if the ID is out of range or not set.
+    static let avatarEmojis = ["🌿", "⭐", "🔥", "🌙", "🍊", "🌺", "💜", "🦋", "🌊", "✨"]
+
+    var avatarEmoji: String? {
+        guard let id = defaultAvatarId, id >= 1, id <= Self.avatarEmojis.count else { return nil }
+        return Self.avatarEmojis[id - 1]
+    }
 }
 
 enum PrivacyLevel: String, Codable, CaseIterable {

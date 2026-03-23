@@ -108,23 +108,14 @@ final class SupabaseUserService: UserServiceProtocol {
     }
 
     func follow(userId: String) async throws {
-        let myId = try manager.requireUserId()
-        // Idempotent: only insert if not already following
-        let alreadyFollowing = try await isFollowing(userId: userId)
-        if !alreadyFollowing {
-            try await manager.client.from("follows")
-                .insert(FollowInsert(followerId: myId, followingId: userId))
-                .execute()
-        }
+        // Atomic RPC: block check + idempotent insert + notification + mutual detection
+        try await manager.client.rpc("follow_user", params: FollowParams(pTargetId: userId))
+            .execute()
     }
 
     func unfollow(userId: String) async throws {
-        let myId = try manager.requireUserId()
-        // Idempotent: only delete if currently following
-        try await manager.client.from("follows")
-            .delete()
-            .eq("follower_id", value: myId)
-            .eq("following_id", value: userId)
+        // Atomic RPC: idempotent delete
+        try await manager.client.rpc("unfollow_user", params: FollowParams(pTargetId: userId))
             .execute()
     }
 
@@ -410,12 +401,11 @@ final class SupabaseUserService: UserServiceProtocol {
     }
 
     private func countRows(_ table: String, column: String, value: String) async throws -> Int {
-        let rows: [CountRow] = try await manager.client.from(table)
-            .select(column, head: false)
+        let response = try await manager.client.from(table)
+            .select("*", head: true, count: .exact)
             .eq(column, value: value)
             .execute()
-            .value
-        return rows.count
+        return response.count ?? 0
     }
 }
 
@@ -441,28 +431,12 @@ private struct BlockRow: Codable {
     }
 }
 
-private struct FollowInsert: Codable {
-    let followerId: String
-    let followingId: String
-    enum CodingKeys: String, CodingKey {
-        case followerId = "follower_id"
-        case followingId = "following_id"
-    }
-}
-
 private struct GatheringMemberWithGathering: Codable {
     var gatherings: DBGathering?
 }
 
 private struct PostSaveWithPost: Codable {
     var posts: PostRowWithRelations?
-}
-
-nonisolated struct CountRow: Codable, Sendable {
-    // Generic row for counting - accepts any single column
-    init(from decoder: Decoder) throws {
-        // Just needs to decode successfully; we only care about array count
-    }
 }
 
 // MARK: - Post/Gathering Mapping Helpers

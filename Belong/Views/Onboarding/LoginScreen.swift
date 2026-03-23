@@ -117,6 +117,7 @@ struct LoginErrorBanner: View {
 struct LoginActions: View {
     @Environment(AppState.self) private var appState
     @Environment(OnboardingViewModel.self) private var viewModel
+    @Environment(\.dismiss) private var dismiss
     @State private var showForgotPasswordAlert = false
     @State private var forgotPasswordMessage = ""
     @State private var isSendingReset = false
@@ -132,6 +133,7 @@ struct LoginActions: View {
             ) {
                 Task {
                     if let user = await viewModel.login() {
+                        dismiss()
                         appState.login(user: user)
                     }
                 }

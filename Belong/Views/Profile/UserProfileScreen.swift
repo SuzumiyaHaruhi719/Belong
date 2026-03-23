@@ -16,6 +16,7 @@ struct UserProfileScreen: View {
     @State private var isMutual = false
     @State private var isCreatingDM = false
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
 
     private var isOwnProfile: Bool {
         userId == appState.currentUser?.id
@@ -86,12 +87,13 @@ struct UserProfileScreen: View {
         error = nil
         do {
             user = try await container.userService.fetchProfile(userId: userId)
+            // Load follow state BEFORE showing content to prevent "Follow" flash on re-entry
+            await loadFollowState()
             isLoading = false
-            // Load follow state, posts, and gatherings in parallel
-            async let followTask: () = loadFollowState()
+            // Load posts and gatherings in parallel (secondary content)
             async let postsTask: () = loadPosts()
             async let gatheringsTask: () = loadGatherings()
-            _ = await (followTask, postsTask, gatheringsTask)
+            _ = await (postsTask, gatheringsTask)
         } catch {
             self.error = error.localizedDescription
             isLoading = false
@@ -183,6 +185,7 @@ struct UserProfileScreen: View {
         guard let user else { return }
         do {
             try await container.userService.block(userId: user.id)
+            dismiss()
         } catch {
             self.error = error.localizedDescription
         }
@@ -369,10 +372,15 @@ private struct UserProfileStats: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            UserProfileStatColumn(count: user.followingCount, label: "Following")
-            UserProfileStatColumn(count: user.followerCount, label: "Followers")
+            NavigationLink(value: ProfileRoute.userFollowing(user.id)) {
+                UserProfileStatColumn(count: user.followingCount, label: "Following")
+            }
+            NavigationLink(value: ProfileRoute.userFollowers(user.id)) {
+                UserProfileStatColumn(count: user.followerCount, label: "Followers")
+            }
             UserProfileStatColumn(count: user.mutualCount, label: "Mutuals")
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, Layout.screenPadding)
     }
 }

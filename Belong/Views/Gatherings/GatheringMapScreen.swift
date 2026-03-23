@@ -175,7 +175,7 @@ struct GatheringMapCarousel: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .onTapGesture {
+                    .simultaneousGesture(TapGesture().onEnded {
                         withAnimation {
                             selectedGathering = gathering
                             if let lat = gathering.latitude, let lon = gathering.longitude {
@@ -187,7 +187,7 @@ struct GatheringMapCarousel: View {
                                 )
                             }
                         }
-                    }
+                    })
                 }
             }
             .padding(.horizontal, Layout.screenPadding)

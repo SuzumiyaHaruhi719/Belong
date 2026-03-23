@@ -6,6 +6,7 @@ struct OnboardingFlow: View {
     @State private var path: [AppState.OnboardingStep] = []
     @State private var viewModel: OnboardingViewModel?
     @State private var showLogin = false
+    @State private var didResumeIncomplete = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -21,9 +22,27 @@ struct OnboardingFlow: View {
             .environment(appState)
             .environment(viewModel ?? OnboardingViewModel(deps: deps))
         }
+        .onChange(of: appState.authStatus) { _, newValue in
+            if newValue == .authenticated || newValue == .incompleteOnboarding {
+                showLogin = false
+            }
+        }
         .task {
             if viewModel == nil {
                 viewModel = OnboardingViewModel(deps: deps)
+            }
+            // If returning with an existing session but incomplete profile,
+            // pre-populate known fields and jump to the profile setup steps.
+            if appState.authStatus == .incompleteOnboarding,
+               !didResumeIncomplete,
+               let user = appState.currentUser {
+                didResumeIncomplete = true
+                let vm = viewModel ?? OnboardingViewModel(deps: deps)
+                vm.email = user.email
+                vm.username = user.username
+                vm.displayName = user.displayName
+                // Skip auth steps (already verified), go straight to avatar setup
+                path = [.avatar]
             }
         }
         .environment(viewModel ?? OnboardingViewModel(deps: deps))

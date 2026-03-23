@@ -5,21 +5,30 @@ struct NotificationRow: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                NotificationRowAvatar(emoji: notification.actorAvatarEmoji)
-                NotificationRowContent(notification: notification)
-                Spacer()
-                NotificationRowTrailing(
-                    thumbnailURL: notification.thumbnailURL,
-                    createdAt: notification.createdAt
-                )
+        if let onTap {
+            Button(action: { onTap() }) {
+                notificationRowBody
             }
-            .padding(.horizontal, Layout.screenPadding)
-            .padding(.vertical, Spacing.md)
-            .background(notification.isRead ? Color.clear : BelongColor.surfaceSecondary)
+            .accessibilityLabel(notification.message)
+        } else {
+            notificationRowBody
+                .accessibilityLabel(notification.message)
         }
-        .accessibilityLabel(notification.message)
+    }
+
+    private var notificationRowBody: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            NotificationRowAvatar(emoji: notification.actorAvatarEmoji)
+            NotificationRowContent(notification: notification)
+            Spacer()
+            NotificationRowTrailing(
+                thumbnailURL: notification.thumbnailURL,
+                createdAt: notification.createdAt
+            )
+        }
+        .padding(.horizontal, Layout.screenPadding)
+        .padding(.vertical, Spacing.md)
+        .background(notification.isRead ? Color.clear : BelongColor.surfaceSecondary)
     }
 }
 

@@ -149,6 +149,11 @@ final class CreateGatheringViewModel {
 
     // MARK: - Validation
 
+    /// True when a cover image upload is in progress — blocks publish/preview.
+    var isCoverUploading: Bool {
+        coverUploadState == .uploading
+    }
+
     @discardableResult
     func validateForm() -> Bool {
         titleError = nil
@@ -167,14 +172,13 @@ final class CreateGatheringViewModel {
         if selectedDate <= Date() {
             dateError = "Date must be in the future"
         }
-
-        return titleError == nil && locationError == nil && dateError == nil
+        return titleError == nil && locationError == nil && dateError == nil && !isCoverUploading
     }
 
     // MARK: - Publish
 
     func publish() async {
-        guard validateForm() else { return }
+        guard validateForm(), !isPublishing else { return }
 
         isPublishing = true
         publishError = nil
@@ -202,6 +206,7 @@ final class CreateGatheringViewModel {
     }
 
     func saveDraft() async {
+        guard !isSavingDraft else { return }
         isSavingDraft = true
         draftError = nil
         draftSaved = false

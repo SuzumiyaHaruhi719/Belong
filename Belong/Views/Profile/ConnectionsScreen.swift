@@ -8,13 +8,19 @@ enum ConnectionsTab: String, CaseIterable {
 
 struct ConnectionsScreen: View {
     @Environment(DependencyContainer.self) private var container
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ProfileViewModel?
     @State private var selectedTab: ConnectionsTab
     @State private var searchText = ""
+    @State private var myFollowingIds: Set<String> = []
+    let userId: String?
 
-    init(initialTab: ConnectionsTab = .followers) {
+    init(initialTab: ConnectionsTab = .followers, userId: String? = nil) {
         _selectedTab = State(initialValue: initialTab)
+        self.userId = userId
     }
+
+    private var isOwnConnections: Bool { userId == nil }
 
     var body: some View {
         Group {
@@ -22,7 +28,9 @@ struct ConnectionsScreen: View {
                 ConnectionsContent(
                     viewModel: vm,
                     selectedTab: $selectedTab,
-                    searchText: $searchText
+                    searchText: $searchText,
+                    isOwnConnections: isOwnConnections,
+                    myFollowingIds: myFollowingIds
                 )
             } else {
                 ProgressView()
@@ -36,7 +44,12 @@ struct ConnectionsScreen: View {
             if viewModel == nil {
                 let vm = ProfileViewModel(userService: container.userService)
                 viewModel = vm
-                await vm.loadProfile()
+                if let userId {
+                    await vm.loadUserProfile(userId: userId)
+                } else {
+                    await vm.loadProfile()
+                }
+                await loadMyFollowingIds()
             }
             await loadCurrentTab()
         }
@@ -53,6 +66,14 @@ struct ConnectionsScreen: View {
         case .mutuals: await vm.loadMutuals()
         }
     }
+
+    private func loadMyFollowingIds() async {
+        guard let myId = appState.currentUser?.id else { return }
+        do {
+            let following = try await container.userService.fetchFollowing(userId: myId, page: 0)
+            myFollowingIds = Set(following.map(\.id))
+        } catch { }
+    }
 }
 
 // MARK: - Content
@@ -61,6 +82,12 @@ private struct ConnectionsContent: View {
     @Bindable var viewModel: ProfileViewModel
     @Binding var selectedTab: ConnectionsTab
     @Binding var searchText: String
+    let isOwnConnections: Bool
+    let myFollowingIds: Set<String>
+
+    private var availableTabs: [ConnectionsTab] {
+        isOwnConnections ? ConnectionsTab.allCases : [.followers, .following]
+    }
 
     private var currentUsers: [User] {
         let users: [User]
@@ -79,7 +106,7 @@ private struct ConnectionsContent: View {
     var body: some View {
         VStack(spacing: 0) {
             Picker("Connections", selection: $selectedTab) {
-                ForEach(ConnectionsTab.allCases, id: \.self) { tab in
+                ForEach(availableTabs, id: \.self) { tab in
                     Text(tab.rawValue).tag(tab)
                 }
             }
@@ -111,7 +138,8 @@ private struct ConnectionsContent: View {
                                 ConnectionUserRow(
                                     user: user,
                                     tab: selectedTab,
-                                    viewModel: viewModel
+                                    isOwnConnections: isOwnConnections,
+                                    isFollowed: myFollowingIds.contains(user.id)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -154,51 +182,85 @@ private struct ConnectionsContent: View {
 private struct ConnectionUserRow: View {
     let user: User
     let tab: ConnectionsTab
-    let viewModel: ProfileViewModel
-    @State private var actionDone = false
+    let isOwnConnections: Bool
+    @State private var isFollowed: Bool
     @State private var isProcessing = false
+    @Environment(DependencyContainer.self) private var container
+    @Environment(AppState.self) private var appState
 
-    private var trailingTitle: String {
-        if actionDone {
-            switch tab {
-            case .followers: return "Following"
-            case .following: return "Unfollowed"
-            case .mutuals: return "Message"
-            }
-        }
-        switch tab {
-        case .followers: return "Follow"
-        case .following: return "Unfollow"
-        case .mutuals: return "Message"
-        }
+    init(user: User, tab: ConnectionsTab, isOwnConnections: Bool, isFollowed: Bool) {
+        self.user = user
+        self.tab = tab
+        self.isOwnConnections = isOwnConnections
+        _isFollowed = State(initialValue: isFollowed)
+    }
+
+    private var isCurrentUser: Bool {
+        user.id == appState.currentUser?.id
+    }
+
+    private var showMessage: Bool {
+        tab == .mutuals && isOwnConnections
+    }
+
+    private var buttonTitle: String {
+        if showMessage { return "Message" }
+        return isFollowed ? "Following" : "Follow"
     }
 
     var body: some View {
+        let actionTitle: String? = isCurrentUser ? nil : (isProcessing ? "..." : buttonTitle)
+        let action: (() -> Void)? = isCurrentUser ? nil : {
+            guard !isProcessing else { return }
+            isProcessing = true
+            Task {
+                if showMessage {
+                    await openDM()
+                } else if isFollowed {
+                    await doUnfollow()
+                } else {
+                    await doFollow()
+                }
+                isProcessing = false
+            }
+        }
+
         UserRow(
             avatarURL: user.avatarURL,
             avatarEmoji: "\u{1F464}",
             name: user.displayName,
             subtitle: "@\(user.username)",
-            trailingActionTitle: isProcessing ? "..." : trailingTitle,
-            onTrailingAction: {
-                guard !isProcessing, !actionDone else { return }
-                isProcessing = true
-                Task {
-                    viewModel.error = nil
-                    switch tab {
-                    case .followers:
-                        await viewModel.followUser(user.id)
-                    case .following:
-                        await viewModel.unfollowUser(user.id)
-                    case .mutuals:
-                        break
-                    }
-                    // Only mark done if backend succeeded (no error was set)
-                    actionDone = viewModel.error == nil
-                    isProcessing = false
-                }
-            }
+            trailingActionTitle: actionTitle,
+            onTrailingAction: action
         )
+    }
+
+    private func doFollow() async {
+        do {
+            try await container.userService.follow(userId: user.id)
+            isFollowed = true
+        } catch { }
+    }
+
+    private func doUnfollow() async {
+        do {
+            try await container.userService.unfollow(userId: user.id)
+            isFollowed = false
+        } catch { }
+    }
+
+    private func openDM() async {
+        do {
+            let conversation = try await container.chatService.createDMConversation(with: user.id)
+            appState.selectedTab = .chat
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                NotificationCenter.default.post(
+                    name: .openConversation,
+                    object: nil,
+                    userInfo: ["conversation": conversation]
+                )
+            }
+        } catch { }
     }
 }
 
@@ -206,5 +268,6 @@ private struct ConnectionUserRow: View {
     NavigationStack {
         ConnectionsScreen(initialTab: .followers)
     }
+    .environment(AppState())
     .environment(DependencyContainer())
 }

@@ -12,7 +12,7 @@ struct InAppBanner: Identifiable, Equatable {
     let messagePreview: String
     let conversationId: String
     let senderId: String
-    let conversation: Conversation?
+    let conversation: Conversation
     let timestamp: Date
 
     static func == (lhs: InAppBanner, rhs: InAppBanner) -> Bool {

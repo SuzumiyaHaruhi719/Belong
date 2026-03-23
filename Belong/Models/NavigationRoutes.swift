@@ -43,6 +43,8 @@ enum ProfileRoute: Hashable {
     case following
     case mutuals
     case userProfile(String)  // userId
+    case userFollowers(String)  // view another user's followers
+    case userFollowing(String)  // view another user's following
     case myEvents
     case myGatherings
     case settings
