@@ -37,8 +37,14 @@ struct ChatListScreen: View {
         .task(id: "autoRefresh") {
             await viewModel?.startAutoRefresh()
         }
-        .onChange(of: viewModel?.conversations.count) {
-            updateBadge()
+        .onAppear {
+            // Refresh when returning from a conversation (clears read badges)
+            if viewModel != nil {
+                Task {
+                    await viewModel?.loadConversations()
+                    updateBadge()
+                }
+            }
         }
     }
 
