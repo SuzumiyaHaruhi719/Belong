@@ -79,6 +79,10 @@ final class MockUserService: UserServiceProtocol {
         }
     }
 
+    nonisolated func isFollowing(userId: String) async throws -> Bool {
+        await MainActor.run { followingIds.contains(userId) }
+    }
+
     nonisolated func block(userId: String) async throws {
         try await Task.sleep(for: .milliseconds(400))
         await MainActor.run {

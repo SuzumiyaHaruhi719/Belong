@@ -11,6 +11,7 @@ protocol UserServiceProtocol: Sendable {
     func checkUsernameAvailability(_ username: String) async throws -> Bool
     func follow(userId: String) async throws
     func unfollow(userId: String) async throws
+    func isFollowing(userId: String) async throws -> Bool
     func block(userId: String) async throws
     func unblock(userId: String) async throws
     func fetchFollowers(userId: String, page: Int) async throws -> [User]

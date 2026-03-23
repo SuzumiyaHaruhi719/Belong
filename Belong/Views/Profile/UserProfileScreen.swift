@@ -75,13 +75,22 @@ struct UserProfileScreen: View {
         do {
             user = try await container.userService.fetchProfile(userId: userId)
             isLoading = false
-            // Load posts and gatherings in parallel
+            // Load follow state, posts, and gatherings in parallel
+            async let followTask: () = loadFollowState()
             async let postsTask: () = loadPosts()
             async let gatheringsTask: () = loadGatherings()
-            _ = await (postsTask, gatheringsTask)
+            _ = await (followTask, postsTask, gatheringsTask)
         } catch {
             self.error = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    private func loadFollowState() async {
+        do {
+            isFollowing = try await container.userService.isFollowing(userId: userId)
+        } catch {
+            // Best-effort — keep current state
         }
     }
 
@@ -103,15 +112,20 @@ struct UserProfileScreen: View {
 
     private func toggleFollow() async {
         guard let user else { return }
+        let wasFollowing = isFollowing
+        // Optimistic update
+        isFollowing = !wasFollowing
         do {
-            if isFollowing {
+            if wasFollowing {
                 try await container.userService.unfollow(userId: user.id)
-                isFollowing = false
             } else {
                 try await container.userService.follow(userId: user.id)
-                isFollowing = true
             }
+            // Verify actual state from backend
+            isFollowing = try await container.userService.isFollowing(userId: user.id)
         } catch {
+            // Rollback on failure
+            isFollowing = wasFollowing
             self.error = error.localizedDescription
         }
     }

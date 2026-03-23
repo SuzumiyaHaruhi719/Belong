@@ -107,9 +107,21 @@ final class SupabaseUserService: UserServiceProtocol {
     }
 
     func unfollow(userId: String) async throws {
-        // toggle_user_follow removes the follow if it exists
         try await manager.client.rpc("toggle_user_follow", params: FollowParams(pTargetId: userId))
             .execute()
+    }
+
+    func isFollowing(userId: String) async throws -> Bool {
+        let myId = try manager.requireUserId()
+        struct FollowRow: Codable { let follower_id: String }
+        let rows: [FollowRow] = try await manager.client.from("follows")
+            .select("follower_id")
+            .eq("follower_id", value: myId)
+            .eq("following_id", value: userId)
+            .limit(1)
+            .execute()
+            .value
+        return !rows.isEmpty
     }
 
     func block(userId: String) async throws {
