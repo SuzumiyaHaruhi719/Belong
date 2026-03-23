@@ -3,11 +3,13 @@ import SwiftUI
 struct PostEventFeedbackSheet: View {
     let gatheringTitle: String
     let hostName: String
-    var onSubmit: ((FeedbackEmoji) -> Void)? = nil
+    var onSubmit: ((FeedbackEmoji) async throws -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedEmoji: FeedbackEmoji? = nil
     @State private var showThanks = false
+    @State private var isSubmitting = false
+    @State private var submitError: String? = nil
 
     var body: some View {
         VStack(spacing: Spacing.lg) {
@@ -23,11 +25,26 @@ struct PostEventFeedbackSheet: View {
             PostFeedbackEmojiRow(
                 selectedEmoji: $selectedEmoji,
                 showThanks: $showThanks,
+                isSubmitting: $isSubmitting,
+                submitError: $submitError,
                 onSubmit: onSubmit,
                 dismiss: dismiss
             )
 
             Spacer()
+
+            if isSubmitting {
+                ProgressView()
+                    .transition(.opacity)
+            }
+
+            if let submitError {
+                Text(submitError)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.error)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity)
+            }
 
             if showThanks {
                 Text("Thanks! \u{2764}\u{FE0F}")
@@ -75,7 +92,9 @@ private struct PostFeedbackEventInfo: View {
 private struct PostFeedbackEmojiRow: View {
     @Binding var selectedEmoji: FeedbackEmoji?
     @Binding var showThanks: Bool
-    var onSubmit: ((FeedbackEmoji) -> Void)?
+    @Binding var isSubmitting: Bool
+    @Binding var submitError: String?
+    var onSubmit: ((FeedbackEmoji) async throws -> Void)?
     let dismiss: DismissAction
 
     var body: some View {
@@ -84,7 +103,7 @@ private struct PostFeedbackEmojiRow: View {
                 PostFeedbackEmojiButton(
                     option: option,
                     isSelected: selectedEmoji?.id == option.id,
-                    isDisabled: selectedEmoji != nil && selectedEmoji?.id != option.id
+                    isDisabled: (selectedEmoji != nil && selectedEmoji?.id != option.id) || isSubmitting
                 ) {
                     selectEmoji(option)
                 }
@@ -94,7 +113,7 @@ private struct PostFeedbackEmojiRow: View {
     }
 
     private func selectEmoji(_ option: FeedbackEmoji) {
-        guard selectedEmoji == nil else { return }
+        guard selectedEmoji == nil, !isSubmitting else { return }
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
             selectedEmoji = option
@@ -103,16 +122,24 @@ private struct PostFeedbackEmojiRow: View {
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
 
-        onSubmit?(option)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeIn(duration: 0.3)) {
-                showThanks = true
+        Task {
+            isSubmitting = true
+            submitError = nil
+            do {
+                try await onSubmit?(option)
+                isSubmitting = false
+                withAnimation(.easeIn(duration: 0.3)) {
+                    showThanks = true
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+                dismiss()
+            } catch {
+                isSubmitting = false
+                submitError = "Failed to submit feedback. Please try again."
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                    selectedEmoji = nil
+                }
             }
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            dismiss()
         }
     }
 }

@@ -90,6 +90,17 @@ final class SupabaseGatheringService: GatheringServiceProtocol {
             gathering.hostAvatarEmoji = "🙂"
         }
 
+        // Fetch average host rating from feedback on host's gatherings
+        if let hostId = row.hostId, !hostId.isEmpty {
+            if let avgRows: [[String: Double]] = try? await manager.client
+                .rpc("get_host_avg_rating", params: ["p_host_id": hostId])
+                .execute()
+                .value,
+               let avg = avgRows.first?["avg_rating"], avg > 0 {
+                gathering.hostRating = avg
+            }
+        }
+
         return gathering
     }
 

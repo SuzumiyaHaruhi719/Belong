@@ -47,7 +47,7 @@ struct CreateGatheringFlow: View {
                         )
                     }
                 case .createPost:
-                    EmptyView()
+                    CreatePostScreen()
                 }
             }
         }

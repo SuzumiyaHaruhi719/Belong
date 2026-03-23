@@ -49,6 +49,7 @@ final class OnboardingViewModel {
     var isLoggingIn = false
     var isSubmittingTags = false
     var registerError: String?
+    var tagError: String?
 
     // MARK: - Registered User (set after successful registration)
     var registeredUser: User?
@@ -59,6 +60,7 @@ final class OnboardingViewModel {
 
     // MARK: - Username debounce
     private var usernameCheckTask: Task<Void, Never>?
+    private var usernameCheckId = 0
 
     // MARK: - Search results
     var cityResults: [String] = []
@@ -207,20 +209,20 @@ final class OnboardingViewModel {
             return
         }
         isCheckingUsername = true
+        usernameCheckId += 1
+        let myCheckId = usernameCheckId
         usernameCheckTask = Task {
             try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, myCheckId == usernameCheckId else { return }
             do {
                 let available = try await deps.authService.checkUsername(trimmed)
-                if !Task.isCancelled {
-                    usernameAvailable = available
-                    isCheckingUsername = false
-                }
+                guard myCheckId == usernameCheckId else { return } // stale response
+                usernameAvailable = available
+                isCheckingUsername = false
             } catch {
-                if !Task.isCancelled {
-                    usernameAvailable = nil
-                    isCheckingUsername = false
-                }
+                guard myCheckId == usernameCheckId else { return }
+                usernameAvailable = nil
+                isCheckingUsername = false
             }
         }
     }
@@ -277,8 +279,9 @@ final class OnboardingViewModel {
         }
         do {
             try await deps.userService.updateTags(tags)
+            tagError = nil
         } catch {
-            // Silently fail for now
+            tagError = "Failed to save your tags. You can update them later in Profile."
         }
     }
 

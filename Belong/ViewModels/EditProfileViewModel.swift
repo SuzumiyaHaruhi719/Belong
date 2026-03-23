@@ -62,7 +62,7 @@ final class EditProfileViewModel {
                 }
             }
         } catch {
-            // Non-critical: start with empty selection on error
+            self.error = "Could not load your tags. Starting with empty selection."
         }
     }
 

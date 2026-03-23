@@ -306,8 +306,13 @@ private struct CustomizeGatheringTagsSection: View {
             let interestResult = try await interests
             availableTags = bgResult + interestResult
         } catch {
-            // Fallback to empty — user can still type or select from what's available
-            availableTags = []
+            // Fallback to hardcoded common tags so user can still create a gathering
+            availableTags = [
+                "Chinese", "Indian", "Vietnamese", "Korean", "Filipino", "Japanese", "Malaysian",
+                "European", "Latin American", "African", "Middle Eastern",
+                "Foodie", "Study buddy", "Nightlife", "Sports", "Music", "Art", "Gaming",
+                "Travel", "Fitness", "Photography", "Cooking", "Reading", "Tech"
+            ]
         }
         isLoadingTags = false
     }

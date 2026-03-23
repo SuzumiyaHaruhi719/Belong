@@ -73,10 +73,12 @@ private struct PostDetailScrollContent: View {
 
                 VStack(alignment: .leading, spacing: Spacing.base) {
                     // Author row
-                    PostDetailAuthorRow(post: post, onFollow: {
-                        Task {
-                            try? await viewModel.container.userService.follow(userId: post.authorId)
+                    PostDetailAuthorRow(post: post, onFollowResult: { success in
+                        if !success {
+                            // Revert handled inside PostDetailAuthorRow
                         }
+                    }, followAction: {
+                        try await viewModel.container.userService.follow(userId: post.authorId)
                     })
 
                     // Content with hashtag highlighting
@@ -91,14 +93,20 @@ private struct PostDetailScrollContent: View {
                     PostDetailActionBar(viewModel: viewModel, post: post)
 
                     // Linked gathering button
-                    if let gatheringTitle = post.linkedGatheringTitle, post.linkedGatheringId != nil {
-                        BelongButton(
-                            title: "View Gathering: \(gatheringTitle)",
-                            style: .secondary,
-                            isFullWidth: true,
-                            leadingIcon: "calendar",
-                            action: {}
-                        )
+                    if let gatheringTitle = post.linkedGatheringTitle, let gatheringId = post.linkedGatheringId {
+                        NavigationLink(value: GatheringsRoute.detail(Gathering.placeholder(id: gatheringId, title: gatheringTitle))) {
+                            HStack(spacing: Spacing.sm) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16))
+                                Text("View Gathering: \(gatheringTitle)")
+                                    .font(BelongFont.bodyMedium())
+                            }
+                            .foregroundStyle(BelongColor.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(BelongColor.surfaceSecondary)
+                            .clipShape(RoundedRectangle(cornerRadius: Layout.radiusMd))
+                        }
                     }
 
                     Divider()
@@ -117,8 +125,10 @@ private struct PostDetailScrollContent: View {
 
 private struct PostDetailAuthorRow: View {
     let post: Post
-    let onFollow: () -> Void
+    let onFollowResult: (Bool) -> Void
+    let followAction: () async throws -> Void
     @State private var isFollowing = false
+    @State private var isProcessing = false
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -138,9 +148,19 @@ private struct PostDetailAuthorRow: View {
             Spacer()
 
             Button(action: {
-                guard !isFollowing else { return }
+                guard !isFollowing, !isProcessing else { return }
                 isFollowing = true
-                onFollow()
+                isProcessing = true
+                Task {
+                    do {
+                        try await followAction()
+                        onFollowResult(true)
+                    } catch {
+                        isFollowing = false
+                        onFollowResult(false)
+                    }
+                    isProcessing = false
+                }
             }) {
                 Text(isFollowing ? "Following" : "Follow")
                     .font(BelongFont.secondaryMedium())
@@ -151,7 +171,7 @@ private struct PostDetailAuthorRow: View {
                     .clipShape(Capsule())
             }
             .frame(minWidth: Layout.touchTargetMin, minHeight: Layout.touchTargetMin)
-            .disabled(isFollowing)
+            .disabled(isFollowing || isProcessing)
         }
     }
 }

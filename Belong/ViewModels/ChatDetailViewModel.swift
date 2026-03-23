@@ -75,45 +75,49 @@ final class ChatDetailViewModel {
         // Unsubscribe from previous channel if any
         await unsubscribe()
 
-        let channel = SupabaseManager.shared.client.realtimeV2.channel("messages:\(conversationId)")
+        do {
+            let channel = SupabaseManager.shared.client.realtimeV2.channel("messages:\(conversationId)")
 
-        let insertions = channel.postgresChange(InsertAction.self, schema: "public", table: "messages", filter: "conversation_id=eq.\(conversationId)")
+            let insertions = channel.postgresChange(InsertAction.self, schema: "public", table: "messages", filter: "conversation_id=eq.\(conversationId)")
 
-        await channel.subscribe()
+            await channel.subscribe()
 
-        // Listen for new messages in background
-        Task { [weak self] in
-            for await insert in insertions {
-                guard let self else { return }
-                let record = insert.record
-                let senderId = (try? record["sender_id"]?.value as? String) ?? ""
-                let myId = SupabaseManager.shared.currentUserId ?? ""
+            // Listen for new messages in background
+            Task { [weak self] in
+                for await insert in insertions {
+                    guard let self else { return }
+                    let record = insert.record
+                    let senderId = (try? record["sender_id"]?.value as? String) ?? ""
+                    let myId = SupabaseManager.shared.currentUserId ?? ""
 
-                // Skip messages we sent ourselves (already in the list)
-                if senderId == myId { continue }
+                    // Skip messages we sent ourselves (already in the list)
+                    if senderId == myId { continue }
 
-                let newMessage = Message(
-                    id: (try? record["id"]?.value as? String) ?? UUID().uuidString,
-                    conversationId: conversationId,
-                    senderId: senderId,
-                    content: try? record["content"]?.value as? String,
-                    imageURL: (try? record["image_url"]?.value as? String).flatMap { URL(string: $0) },
-                    sharedPostId: try? record["shared_post_id"]?.value as? String,
-                    messageType: MessageType(rawValue: (try? record["message_type"]?.value as? String) ?? "text") ?? .text,
-                    reactions: [],
-                    replyTo: nil,
-                    status: .delivered,
-                    createdAt: Date(),
-                    senderName: "User",
-                    senderAvatarEmoji: "🙂",
-                    isCurrentUser: false,
-                    sharedPostPreview: nil
-                )
-                self.messages.append(newMessage)
+                    let newMessage = Message(
+                        id: (try? record["id"]?.value as? String) ?? UUID().uuidString,
+                        conversationId: conversationId,
+                        senderId: senderId,
+                        content: try? record["content"]?.value as? String,
+                        imageURL: (try? record["image_url"]?.value as? String).flatMap { URL(string: $0) },
+                        sharedPostId: try? record["shared_post_id"]?.value as? String,
+                        messageType: MessageType(rawValue: (try? record["message_type"]?.value as? String) ?? "text") ?? .text,
+                        reactions: [],
+                        replyTo: nil,
+                        status: .delivered,
+                        createdAt: Date(),
+                        senderName: "User",
+                        senderAvatarEmoji: "🙂",
+                        isCurrentUser: false,
+                        sharedPostPreview: nil
+                    )
+                    self.messages.append(newMessage)
+                }
             }
-        }
 
-        self.realtimeChannel = channel
+            self.realtimeChannel = channel
+        } catch {
+            self.error = "Failed to connect to live updates: \(error.localizedDescription)"
+        }
     }
 
     func unsubscribe() async {

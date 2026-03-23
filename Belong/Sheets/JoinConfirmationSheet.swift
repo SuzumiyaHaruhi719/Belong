@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 
 struct JoinConfirmationSheet: View {
     let gathering: Gathering
@@ -27,7 +28,7 @@ struct JoinConfirmationSheet: View {
 
             Spacer()
 
-            JoinConfirmationActions(dismiss: dismiss)
+            JoinConfirmationActions(dismiss: dismiss, gathering: gathering)
         }
         .padding(.horizontal, Layout.screenPadding)
         .padding(.top, Spacing.md)
@@ -127,18 +128,32 @@ private struct JoinConfirmationFacePile: View {
 
 private struct JoinConfirmationActions: View {
     let dismiss: DismissAction
+    var gathering: Gathering? = nil
+    @State private var calendarStatus: CalendarAddStatus = .idle
+
+    enum CalendarAddStatus: Equatable {
+        case idle, adding, success, error(String)
+    }
 
     var body: some View {
         VStack(spacing: Spacing.md) {
             BelongButton(
-                title: "Add to my calendar",
+                title: calendarButtonTitle,
                 style: .secondary,
                 isFullWidth: true,
-                leadingIcon: "calendar"
+                isLoading: isAdding,
+                isDisabled: calendarStatus == .success,
+                leadingIcon: calendarButtonIcon
             ) {
-                // Calendar integration placeholder
+                Task { await addToCalendar() }
             }
             .accessibilityLabel("Add gathering to my calendar")
+
+            if case .error(let msg) = calendarStatus {
+                Text(msg)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.error)
+            }
 
             BelongButton(
                 title: "Done",
@@ -150,6 +165,48 @@ private struct JoinConfirmationActions: View {
             .accessibilityLabel("Done, close confirmation")
         }
         .padding(.bottom, Spacing.xl)
+    }
+
+    private var isAdding: Bool {
+        if case .adding = calendarStatus { return true }
+        return false
+    }
+
+    private var calendarButtonTitle: String {
+        if case .success = calendarStatus { return "Added to calendar" }
+        return "Add to my calendar"
+    }
+
+    private var calendarButtonIcon: String {
+        if case .success = calendarStatus { return "checkmark" }
+        return "calendar"
+    }
+
+    private func addToCalendar() async {
+        guard let gathering else {
+            calendarStatus = .error("Gathering info unavailable")
+            return
+        }
+        calendarStatus = .adding
+        let store = EKEventStore()
+        do {
+            let granted = try await store.requestFullAccessToEvents()
+            guard granted else {
+                calendarStatus = .error("Calendar access denied. Enable in Settings.")
+                return
+            }
+            let event = EKEvent(eventStore: store)
+            event.title = gathering.title
+            event.startDate = gathering.startsAt
+            event.endDate = gathering.endsAt ?? gathering.startsAt.addingTimeInterval(7200)
+            event.location = gathering.locationName
+            event.notes = "Hosted by \(gathering.hostName) on Belong"
+            event.calendar = store.defaultCalendarForNewEvents
+            try store.save(event, span: .thisEvent)
+            calendarStatus = .success
+        } catch {
+            calendarStatus = .error("Could not add to calendar: \(error.localizedDescription)")
+        }
     }
 }
 

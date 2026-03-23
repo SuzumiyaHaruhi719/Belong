@@ -97,6 +97,7 @@ final class PostDetailViewModel {
     }
 
     func deleteComment(id: String) {
+        let index = comments.firstIndex(where: { $0.id == id })
         let removed = comments.first(where: { $0.id == id })
         comments.removeAll { $0.id == id }
         post?.commentCount -= 1
@@ -104,8 +105,8 @@ final class PostDetailViewModel {
             do {
                 try await container.postService.deleteComment(commentId: id)
             } catch {
-                if let removed {
-                    comments.append(removed)
+                if let removed, let idx = index {
+                    comments.insert(removed, at: min(idx, comments.count))
                     post?.commentCount += 1
                 }
             }

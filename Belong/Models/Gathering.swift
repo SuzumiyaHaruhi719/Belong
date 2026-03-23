@@ -31,6 +31,20 @@ struct Gathering: Identifiable, Codable, Hashable {
     var isMaybe: Bool
     var createdAt: Date
 
+    /// Creates a minimal placeholder used for navigation when only the ID is known.
+    static func placeholder(id: String, title: String = "") -> Gathering {
+        Gathering(
+            id: id, hostId: "", title: title, description: "",
+            templateType: .hangout, emoji: "🤝", city: "", locationName: "",
+            startsAt: Date(), maxAttendees: 10, visibility: .open,
+            vibe: .welcoming, status: .upcoming, isDraft: false,
+            tags: [], attendeeCount: 0, attendeeAvatars: [],
+            hostName: "", hostAvatarEmoji: "🙂", hostRating: 0,
+            isBookmarked: false, isJoined: false, isMaybe: false,
+            createdAt: Date()
+        )
+    }
+
     var isFull: Bool { attendeeCount >= maxAttendees }
     var spotsRemaining: Int { max(0, maxAttendees - attendeeCount) }
     var isPast: Bool { startsAt < Date() }

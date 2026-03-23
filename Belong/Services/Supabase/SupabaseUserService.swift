@@ -269,21 +269,55 @@ final class SupabaseUserService: UserServiceProtocol {
     }
 
     func fetchCities(query: String) async throws -> [String] {
-        // For now, return common cities. In production, use a dedicated cities table.
-        let cities = ["Melbourne", "Sydney", "Brisbane", "Perth", "Adelaide", "Canberra", "Hobart", "Darwin"]
+        // Common cities across Australia and the US for international students
+        let cities = [
+            // Australia
+            "Melbourne", "Sydney", "Brisbane", "Perth", "Adelaide", "Canberra", "Hobart", "Darwin",
+            // United States
+            "Boston", "New York", "San Francisco", "Los Angeles", "Chicago", "Seattle",
+            "Washington DC", "Philadelphia", "San Diego", "Austin", "Houston", "Atlanta",
+            "Miami", "Denver", "Minneapolis", "Pittsburgh", "Ann Arbor", "New Haven",
+            "Durham", "Ithaca", "Champaign", "Madison", "Columbus", "Tucson"
+        ]
         if query.isEmpty { return cities }
         return cities.filter { $0.localizedCaseInsensitiveContains(query) }
     }
 
     func fetchSchools(city: String) async throws -> [String] {
-        // Same approach - hardcode for now, could be a schools table later
+        // Schools by city - Australia and US
         let schoolsByCity: [String: [String]] = [
+            // Australia
             "Melbourne": ["University of Melbourne", "Monash University", "RMIT University", "Deakin University", "La Trobe University", "Swinburne University of Technology"],
             "Sydney": ["University of Sydney", "UNSW Sydney", "Macquarie University", "UTS"],
             "Brisbane": ["University of Queensland", "QUT", "Griffith University"],
             "Perth": ["University of Western Australia", "Curtin University"],
             "Adelaide": ["University of Adelaide", "Flinders University"],
             "Canberra": ["Australian National University", "University of Canberra"],
+            // United States
+            "Boston": ["MIT", "Harvard University", "Boston University", "Northeastern University", "Boston College", "Tufts University"],
+            "New York": ["Columbia University", "NYU", "CUNY", "The New School", "Fordham University", "Barnard College"],
+            "San Francisco": ["Stanford University", "UC Berkeley", "UCSF", "San Francisco State University", "University of San Francisco"],
+            "Los Angeles": ["UCLA", "USC", "Caltech", "Loyola Marymount University", "Occidental College", "Pepperdine University"],
+            "Chicago": ["University of Chicago", "Northwestern University", "DePaul University", "UIC", "Loyola University Chicago", "Illinois Institute of Technology"],
+            "Seattle": ["University of Washington", "Seattle University", "Seattle Pacific University"],
+            "Washington DC": ["Georgetown University", "George Washington University", "American University", "Howard University"],
+            "Philadelphia": ["University of Pennsylvania", "Drexel University", "Temple University", "Villanova University"],
+            "San Diego": ["UC San Diego", "San Diego State University", "University of San Diego"],
+            "Austin": ["University of Texas at Austin", "St. Edward's University"],
+            "Houston": ["Rice University", "University of Houston", "Texas Southern University"],
+            "Atlanta": ["Georgia Tech", "Emory University", "Georgia State University", "Morehouse College", "Spelman College"],
+            "Miami": ["University of Miami", "Florida International University"],
+            "Denver": ["University of Denver", "University of Colorado Denver", "Colorado School of Mines"],
+            "Minneapolis": ["University of Minnesota", "Augsburg University"],
+            "Pittsburgh": ["Carnegie Mellon University", "University of Pittsburgh"],
+            "Ann Arbor": ["University of Michigan"],
+            "New Haven": ["Yale University", "Southern Connecticut State University"],
+            "Durham": ["Duke University", "North Carolina Central University"],
+            "Ithaca": ["Cornell University", "Ithaca College"],
+            "Champaign": ["University of Illinois Urbana-Champaign"],
+            "Madison": ["University of Wisconsin-Madison"],
+            "Columbus": ["Ohio State University"],
+            "Tucson": ["University of Arizona"],
         ]
         return schoolsByCity[city] ?? []
     }
@@ -503,7 +537,7 @@ func mapDBGathering(_ row: DBGathering, isBookmarked: Bool = false, isJoined: Bo
         attendeeAvatars: [],
         hostName: "",
         hostAvatarEmoji: "🙂",
-        hostRating: 4.5,
+        hostRating: 0,
         isBookmarked: isBookmarked,
         isJoined: isJoined,
         isMaybe: isMaybe,

@@ -216,6 +216,7 @@ struct PrivacySettingsScreen: View {
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
+                .disabled(isSaving)
             }
 
             Section("Direct Messages") {
@@ -225,6 +226,7 @@ struct PrivacySettingsScreen: View {
                 }
                 .pickerStyle(.inline)
                 .labelsHidden()
+                .disabled(isSaving)
             }
 
             if let error = saveError {

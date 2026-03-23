@@ -62,8 +62,12 @@ struct GatheringDetailScreen: View {
                 .presentationDetents([.medium])
         }
         .fullScreenCover(isPresented: $showEditFlow) {
-            EditGatheringFlow(gathering: viewModel.gathering ?? initialGathering!, container: container) {
-                Task { await viewModel.loadDetail(id: gatheringId) }
+            if let g = viewModel.gathering ?? initialGathering {
+                EditGatheringFlow(gathering: g, container: container) {
+                    Task { await viewModel.loadDetail(id: gatheringId) }
+                }
+            } else {
+                Text("Unable to load gathering")
             }
         }
         .task {
@@ -269,15 +273,21 @@ struct GatheringDetailHostRow: View {
                 Text(hostName)
                     .font(BelongFont.bodyMedium())
                     .foregroundStyle(BelongColor.textPrimary)
-                HStack(spacing: Spacing.xs) {
-                    ForEach(0..<5, id: \.self) { index in
-                        Image(systemName: index < Int(hostRating.rounded()) ? "star.fill" : "star")
-                            .font(.system(size: 12))
-                            .foregroundStyle(BelongColor.gold)
+                if hostRating > 0 {
+                    HStack(spacing: Spacing.xs) {
+                        ForEach(0..<5, id: \.self) { index in
+                            Image(systemName: index < Int(hostRating.rounded()) ? "star.fill" : "star")
+                                .font(.system(size: 12))
+                                .foregroundStyle(BelongColor.gold)
+                        }
+                        Text(String(format: "%.1f", hostRating))
+                            .font(BelongFont.caption())
+                            .foregroundStyle(BelongColor.textSecondary)
                     }
-                    Text(String(format: "%.1f", hostRating))
+                } else {
+                    Text("New host")
                         .font(BelongFont.caption())
-                        .foregroundStyle(BelongColor.textSecondary)
+                        .foregroundStyle(BelongColor.textTertiary)
                 }
             }
         }
@@ -322,6 +332,13 @@ struct GatheringDetailBottomBar: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if case .error(let message) = joinState {
+                Text(message)
+                    .font(BelongFont.caption())
+                    .foregroundStyle(BelongColor.error)
+                    .padding(.horizontal, Layout.screenPadding)
+                    .padding(.top, Spacing.sm)
+            }
             Divider()
             HStack(spacing: Spacing.md) {
                 if joinState == .joined || gathering.isJoined {
